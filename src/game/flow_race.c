@@ -3,12 +3,17 @@
 #include "game/game.h"
 #include "enhanced/enhanced.h"
 
+#include <SDL3/SDL.h>
+
 /* 0792:000c race_run — game_flow.md §4.13 (verified) */
 void race_run(void)
 {
     u16 frame_start;
 
     DSB(DS_frozen) = 0;
+    /* ENH developer aid: TD3_DEBUG_KEYS=1 turns on the original's dormant debug keys (T rain, S snow, N night;
+     * they also make the car invulnerable), for checking the renderer in weather and at night. */
+    bool debug_keys = SDL_getenv("TD3_DEBUG_KEYS") != NULL;
     playdisk_verify();
     DSB(DS_prev_external_view) = 0;
     DSB(DS_external_panel_on) = 0;
@@ -34,6 +39,7 @@ void race_run(void)
 
     for (;;) {
         u16 now = DSW(DS_tick_count);                          /* the pacing reference (iVar2) */
+        if (debug_keys) DSB(DS_debug_keys) = 1;                /* ENH developer aid (see above) */
         if (DSW(DS_race_state) == 3) {                         /* leave */
             enh_stop();                                        /* ENH */
             if (DSB(DS_race_computer_cars) != 0) opponent_times_finalize();
@@ -61,7 +67,10 @@ void race_run(void)
             if (DSW(DS_race_state) == DSW(DS_prev_race_state)) {
                 if (DSB(DS_crashed) != 0) {                    /* crash sequence */
                     if (DSB(DS_crash_water) == 0) broken_glass_overlay();
-                    else water_overlay_start();
+                    else {
+                        enh_stop();                            /* ENH: the water roll scrolls the screen */
+                        water_overlay_start();
+                    }
                     for (s16 i = 1; i < 0x50; i += 2) {        /* 40 steps */
                         if (DSB(DS_crash_water) == 0 || DSB(DS_water_anim) != 1) bios_wait_ticks(1);
                         else water_roll_step();

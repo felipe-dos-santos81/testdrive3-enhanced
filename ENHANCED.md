@@ -25,7 +25,7 @@ before. Hooks, marked `ENH:` in the engine:
 | `enh_ov_begin()` / `enh_ov_pixels()` / `enh_ov_skip()` / `enh_ov_quad()` / `enh_ov_line()` | `frame_draw`, `cockpit_overlays`, `headlight_beam_draw`, `overlay_quads4_draw`, `wipers_update_draw` | the cockpit overlays in drawing order (see Overlays) |
 | `enh_frame_drawn()` | end of `frame_draw` | the frame becomes the newest snapshot |
 | `enh_view_presented()` | end of `view_present` | where V and the mirror image M are on the screen, and their contents |
-| `enh_stop()` | `race_run` leaving, `main_menu` leaving the preview | stop laying the view over the screen |
+| `enh_stop()` | `race_run` leaving and before the water-crash roll (which scrolls the screen), `main_menu` leaving the preview | stop laying the view over the screen (until the next frame is presented) |
 | `enh_compose()` | `platform/vga.c` compose | draw and lay the enhanced view over the scaled VGA picture |
 
 The main menu's rotating car uses the same frame, so it is enhanced too.
@@ -180,6 +180,8 @@ the display rate (VSync).
 * `TD3_ENH_COMPARE=1` (`2`): the newest game frame without smoothing, enhanced on the left (right) half of the
   screen and the original on the other half.
 * `TD3_ENH_LOG=file`: one line per displayed frame: time, game frame, camera, primitives, render time in µs.
+* `TD3_DEBUG_KEYS=1` (`race_run`): turns on the original's dormant debug keys, Shift+T rain, Shift+S snow,
+  Shift+N night (they also make the car invulnerable), to check the renderer in weather.
 * The port's `TD3_SNAPSHOT_DIR` / `TD3_KEYS` work as before; snapshots are saved at the output resolution.
 
 ## Later
