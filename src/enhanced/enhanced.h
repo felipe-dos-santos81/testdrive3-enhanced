@@ -15,6 +15,9 @@
 #define ENH_MAX_AA            4
 #define ENH_MAX_SAMPLES       16       /* res scale x aa at most (samples per original pixel, each axis) */
 #define ENH_DEFAULT_MOTION_DELAY 50    /* percent of a game frame the smooth view runs behind the game */
+#ifndef ENH_BLEND_SPAN
+#define ENH_BLEND_SPAN 1.0             /* game frames over which a new frame's motion takes over */
+#endif
 
 /* main.c: enabled = false is --classic (the original's picture, scaled). res_scale 1..8, aa 1..4,
  * motion_delay 0..100. */

@@ -18,6 +18,15 @@
     rim) replayed over the enhanced view in the original order; the dashboard, HUD, menus, messages, the replay
     panel and the crash pictures stay the original's.
   - The main menu's turning car is enhanced too. `--classic` shows the original picture only.
+- Fixes after the first play-test:
+  - Shimmer: between the game drawing a frame and presenting it, the new frame's view buffer was compared with
+    the old screen, so parts of the view fell back to the blocky original for a displayed frame, 6 times a second.
+    Faces are also drawn in the game's own depth order now, so coplanar faces no longer swap during the motion.
+  - Controls: the first of the three control reads per frame runs before the simulation (`ENH:`), so the car
+    answers the keys a frame (158 ms) sooner. Verified with real Windows key events (held, auto-repeating):
+    throttle, brake and steering register every frame.
+  - Wheels of the other cars (lamp blobs) grew relative to the car as it drove away: the blob width is now the
+    original's row sum and its radius the original's whole-pixel radius on average.
 - Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing and motion.
 - Developer aids: `TD3_ENH_COMPARE=1|2` (enhanced and original side by side), `TD3_ENH_LOG=file` (per-frame
   camera and render time).

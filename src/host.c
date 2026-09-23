@@ -422,7 +422,12 @@ static u16 xt_scan(SDL_Scancode sc)
 static void feed(const u8 *bytes, int n)
 {
     if (!kbd_handler) return;
-    for (int i = 0; i < n; i++) kbd_handler(bytes[i]);
+    static FILE *klog; static int kst = -1;
+    if (kst < 0) { const char *p = SDL_getenv("TD3_KBD_LOG"); klog = p ? fopen(p, "w") : NULL; kst = 1; }
+    for (int i = 0; i < n; i++) {
+        kbd_handler(bytes[i]);
+        if (klog) { fprintf(klog, "%.4f %02X\n", SDL_GetTicksNS() / 1e9, bytes[i]); fflush(klog); }
+    }
 }
 
 static void key_event(SDL_Scancode sc, bool down)

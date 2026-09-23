@@ -198,6 +198,12 @@ void enh_frame_drawn(void)
     u16 fseg = DSW(DS_face_block + 2), fbase = DSW(DS_face_block);
     for (int f = 0; f < s->nf; f++)
         for (int k = 0; k < 5; k++) s->face[f][k] = rd16(fseg, (u16)(fbase + 10 * f + 2 * k));
+    /* the order the game sorted them in (faces_sort_keys): drawing in it keeps coplanar faces (road markings,
+     * decals) in the same order between the game's frames instead of swapping as their keys cross */
+    for (int i = 0; i < s->nf; i++) {
+        u16 idx = (u16)((u16)(rd16(fseg, (u16)(DSW(DS_order_ofs) + 2 * i)) - fbase) / 10);
+        s->order[i] = idx < s->nf ? idx : (u16)i;
+    }
     for (int k = 0; k < 4; k++) {
         s->point_sizes[k] = DSB(DS_point_sizes + k);
         s->line_widths[k] = DSB(DS_line_widths + k);
@@ -268,6 +274,7 @@ void enh_view_presented(void)
     e->msg_rows = DSB(DS_msg_protect) ? 0x15 - (DSB(DS_menu_preview) ? vc : 0) : 0;
     e->mirror = enh_cur->mirror_on && DSB(DS_lzw_mirror_dirty) == 0;
     memcpy(e->vbuf, vbuf_ptr(), sizeof e->vbuf);
+    memcpy(e->fbuf, enh_cur->vbuf, sizeof e->fbuf);
     memcpy(e->mbuf, mp(DSW(DS_mirrorbuf_seg), 0), sizeof e->mbuf);
     e->active = true;
 }
@@ -339,7 +346,11 @@ static void view_compute(void)
         if (xo > 2.5) xo = 2.5;
         ph_old = xo - lag;
     }
-    double t = x < 1.0 ? x : 1.0, w = t * t * (3.0 - 2.0 * t);
+    static double span = -1;                            /* developer aid TD3_ENH_BLEND=frames */
+    if (span < 0) { const char *b = SDL_getenv("TD3_ENH_BLEND"); span = b ? SDL_atof(b) : ENH_BLEND_SPAN; if (span < 0.05) span = 0.05; }
+    double t = x / span;
+    if (t > 1.0) t = 1.0;
+    double w = t * t * (3.0 - 2.0 * t);
     const double *pc = &cc.x4;
     for (int i = 0; i < CAM_N; i++) {
         double nw = pair_ok ? ph * dn[i] : 0.0;
@@ -459,7 +470,6 @@ static void paste_front_row(int r, void *vctx)
 {
     const PasteCtx *pc = vctx;
     const EnhPresent *e = &enh_present;
-    const EnhSnap *s = enh_cur;
     if (r < e->msg_rows) return;
     int sy = e->y0 + r;
     if (sy < 0 || sy >= 200) return;
@@ -468,7 +478,7 @@ static void paste_front_row(int r, void *vctx)
         if (sx < 0 || sx >= 320 || (compare == 1 && sx >= 160) || (compare == 2 && sx < 160)) continue;
         if (e->hole && r < 14 && sx >= 168 && sx < 256) continue;
         int vi = r * 320 + c;
-        if (pc->vram[sy * 320 + sx] != e->vbuf[vi] || e->vbuf[vi] != s->vbuf[vi]) continue;
+        if (pc->vram[sy * 320 + sx] != e->vbuf[vi] || e->vbuf[vi] != e->fbuf[vi]) continue;
         paste_block(pc->out, sx * enh_scale, sy * enh_scale, &enh_front, c, r);
     }
 }
@@ -523,9 +533,9 @@ bool enh_compose(u32 *xrgb, const u32 pal[256])
         log_state = log != NULL;
     }
     if (log) {
-        fprintf(log, "%.4f frame %u x4 %.2f z4 %.2f h %.1f row %.2f prims %d us %u\n",
+        fprintf(log, "%.4f frame %u x4 %.2f z4 %.2f h %.1f row %.2f prims %d us %u speed %d keys %02X brake %d thr %d wheel %d\n",
                 (double)t0 / 1e9, s->frame_counter, view.cam_x4, view.cam_z4, view.heading, view.cam_row,
-                enh_front.nprim, (unsigned)((host_time_ns() - t0) / 1000));
+                enh_front.nprim, (unsigned)((host_time_ns() - t0) / 1000), DSS(DS_car_speed), DSB(DS_kbd_bits), DSB(DS_brake), DSB(DS_throttle), DSB(DS_steer_wheel));
         fflush(log);
     }
     return true;

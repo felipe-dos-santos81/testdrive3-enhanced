@@ -111,8 +111,11 @@ void race_run(void)
             message_box(m);
         }
 
-        frame_update();
+        /* ENH: the first of the three control reads runs before the simulation instead of after it, so the car
+         * reacts to the keys held now instead of those held up to a frame earlier (the same three reads a frame:
+         * steering and throttle change at the same rate). */
         race_input(0);
+        frame_update();
         frame_draw();
         race_input(1);
         if (DSB(DS_crashed) == 0 && DSB(DS_ext_view) == 0) {

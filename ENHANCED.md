@@ -89,9 +89,12 @@ would make everything step; here they stay continuous.
 
 ## Faces
 
-The face list of the newest snapshot, with depth keys by the original's rule (`361c`: nearest vertex, average,
-`s·11/32` for triangles, farthest-vertex flag) in floating point, sorted farthest first and merged with the
-sprites exactly as `323e` does (a sprite is drawn before a face when its key is larger). Per face, as `3a7c`:
+The face list of the newest snapshot, drawn farthest first in the game's own sorted order (`361c`, captured
+from the order array): re-sorting at every displayed frame made coplanar faces (road markings on the road,
+decals) swap as their keys crossed during the smooth motion, a visible shimmer. Depth keys by the original's rule
+(nearest vertex, average, `s·11/32` for triangles, farthest-vertex flag) are evaluated in floating point for the
+view time only to merge the sprites, exactly as `323e` does (a sprite is drawn before a face when its key is
+larger). Per face, as `3a7c`:
 
 * the front-view test (all x negative / all ≥ 2800h / none below 5400h, as 16-bit results) and otherwise the
   mirror test against `BD3D`; a face is drawn in at most one view;
@@ -103,8 +106,11 @@ sprites exactly as `323e` does (a sprite is drawn before a face when its key is 
   010Fh blinks with the frame counter;
 * lines: one pixel wide, or (width flags) the angular half width `atan(size / dist)` of the near end, plus a
   pixel as the original widens; at least one row high;
-* points (lamps): the original's lens-shaped blob (radius `atan(size / dist)`, width from how squarely the lamp
-  faces the camera, owner object by vertex range), as a polygon.
+* points (lamps, and the wheels of the cars): the original's lens-shaped blob — row `k` of `2r` widened by
+  `inc · k · (2r − 1 − k) / 2`, width from how squarely the lamp faces the camera, owner object by vertex range —
+  as a polygon. The original truncates the radius `atan(size / dist)` to whole pixels (nothing below 1); the
+  continuous radius is taken half a pixel smaller, the original's average, so small blobs (far wheels) keep
+  their size relative to their car.
 
 The ground-slope, surface, crash and bump tests of the face drawer stay in the original renderer: the enhanced
 one only draws.
@@ -153,13 +159,22 @@ dithers; from afar a dither is its average, so a sample of a pair resolves to th
 colours (weight 128), the sky gradient uses the weight for its blend, sprites and overlay pixels are solid.
 Resolving averages `aa × aa` samples per output pixel through the current DAC (fades and flashes included).
 
+## Controls
+
+`race_run` reads the controls three times a frame (`race_input` 0, 1, 2), all after the simulation step, so
+the car reacted to keys held up to a whole frame (158 ms) earlier. `ENH:` the first read now runs just before
+`frame_update`: still three reads a frame (steering and throttle change at the same rate per frame), the newest
+one right before the physics. Measured: the steering wheel moves in the first frame after the key instead of the
+second. (The game's own steering still builds up over about three frames.)
+
 ## Composition
 
 `platform/vga.c` scales the 320 × 200 VGA picture by `--res-scale` and calls `enh_compose`, which lays the
 enhanced view over the view window and the mirror. An original pixel of the view window shows the enhanced view
 when the screen still holds what `view_present` copied there (so message boxes, the replay panel, the crash
 cracks and the water roll, drawn over the screen or into V later, stay), V was not changed after the frame
-(the cracks), it is not in the mirror's hole (V rows 0..13 at x 168..255) or under a message box
+(the cracks) — both compared as they were at that `view_present`, since the game draws its next frame before
+presenting it and the host presents in between — it is not in the mirror's hole (V rows 0..13 at x 168..255) or under a message box
 (`msg_protect`). A mirror pixel shows the enhanced mirror when it is in the part `mirror_present` copies, not
 the frame `mirror_frame_draw` paints, the mirror is on and valid, and the screen still holds it.
 
@@ -179,7 +194,10 @@ the display rate (VSync).
 
 * `TD3_ENH_COMPARE=1` (`2`): the newest game frame without smoothing, enhanced on the left (right) half of the
   screen and the original on the other half.
-* `TD3_ENH_LOG=file`: one line per displayed frame: time, game frame, camera, primitives, render time in µs.
+* `TD3_ENH_LOG=file`: one line per displayed frame: time, game frame, camera, primitives, render time in µs,
+  speed, held direction bits, brake, throttle, steering wheel.
+* `TD3_KBD_LOG=file` (`host.c`): every XT byte fed to the game's keyboard handler, with its time.
+* `TD3_ENH_BLEND=frames`: how long a new frame's motion takes to take over (default 1).
 * `TD3_DEBUG_KEYS=1` (`race_run`): turns on the original's dormant debug keys, Shift+T rain, Shift+S snow,
   Shift+N night (they also make the car invulnerable), to check the renderer in weather.
 * The port's `TD3_SNAPSHOT_DIR` / `TD3_KEYS` work as before; snapshots are saved at the output resolution.

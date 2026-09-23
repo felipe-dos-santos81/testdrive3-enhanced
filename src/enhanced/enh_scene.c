@@ -311,8 +311,10 @@ static void draw_point(int v0, u16 w0)
         if (NEG(m) || NEG(m + 0x6A00) || NEG(m + 0x3500)) return;
     }
     double size = S->point_sizes[(w0 >> 11) & 3], d = vdist[v0] * (front ? 1 : 2);
-    double r = fmin(atan2(size, d < 1e-3 ? 1e-3 : d) * RAD2PX, 255.0);   /* radius, pixels */
-    if (r < 0.35) return;
+    /* radius, pixels. The original truncates it to whole pixels (nothing below 1), half a pixel smaller on
+     * average: the blob is drawn at that average, which keeps small ones from outgrowing their car */
+    double r = fmin(atan2(size, d < 1e-3 ? 1e-3 : d) * RAD2PX, 255.0) - 0.5;
+    if (r < 0.5) return;
     int owner = -1;                                          /* last object whose range holds v */
     for (int o = S->nobj - 1; o >= 0; o--) {
         const EnhObj *e = &S->obj[o];
@@ -325,9 +327,9 @@ static void draw_point(int v0, u16 w0)
     a = fmod(wrapu(a), 32768.0);
     if (a > 16384.0) a = 32768.0 - a;
     double s = sin(a / 16384.0 * M_PI / 2);                  /* 0 edge-on, 1 face-on */
-    double q = (r < 12 ? 48.0 : 56.0) / (r > 2 ? r - 1 : 1);
+    double q = (r < 12 ? 48.0 : 56.0) / (r > 2 ? r - 1 : 1);   /* the original divides by r - 1 from r = 2 on */
     double inc = q * s / 32.0;                               /* widening per row, pixels */
-    double half = (r < 12 ? 8 * r : 4 * r) * s / 32.0 + 0.5; /* half width at the top and bottom, pixels */
+    double half = (r < 12 ? 8 * r : 4 * r) * s / 32.0 + 0.25; /* half width at the top and bottom, pixels */
     double cx, cy;
     if (front) {
         T = &enh_front;
@@ -343,8 +345,11 @@ static void draw_point(int v0, u16 w0)
     }
     double px[16], py[16];
     const int N = 6;
+    /* The original widens row k (0 .. 2r-1) by inc * (k*r - k*(k+1)/2) = inc * k * (2r - 1 - k) / 2: zero at
+     * both ends, inc * (r - 1/2)^2 / 2 in the middle (about r for large r). The rows span 2r. */
+    double k1 = 2 * r - 1 > 0 ? 2 * r - 1 : 0;
     for (int i = 0; i <= N; i++) {                           /* right side down, left side up */
-        double t = 2 * r * i / N, hw = half + inc * (t * r - t * t / 2);
+        double u = (double)i / N, k = u * k1, hw = half + inc * k * (k1 - k) / 2, t = 2 * r * u;
         px[i] = (cx + hw) * 32; py[i] = cy - r + t;
         px[2 * N + 1 - i] = (cx - hw) * 32; py[2 * N + 1 - i] = cy - r + t;
     }
@@ -402,14 +407,6 @@ static double face_key(int f)
     if (n == 1) return (d0 + d1) / 2;
     if (n == 2) return (d0 + d1 + d2) * 11.0 / 32.0;         /* the original's s/2 - s/8 - s/32 */
     return (d0 + d1 + d2 + d3) / 4;
-}
-
-static int cmp_face(const void *a, const void *b)            /* farthest first; equal keys in list order */
-{
-    int i = *(const int *)a, j = *(const int *)b;
-    if (fkey[i] > fkey[j]) return -1;
-    if (fkey[i] < fkey[j]) return 1;
-    return i - j;
 }
 
 /* ------------------------------------------------------------------------------------------------------
@@ -536,8 +533,8 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     project();
     sky_ground();
 
-    for (int f = 0; f < s->nf; f++) { fkey[f] = face_key(f); forder[f] = f; }
-    qsort(forder, (size_t)s->nf, sizeof forder[0], cmp_face);
+    /* faces farthest first in the game's own order; the keys at the view time only place the sprites */
+    for (int f = 0; f < s->nf; f++) { fkey[f] = face_key(f); forder[f] = s->order[s->nf - 1 - f]; }
 
     int ns = 0;
     double base = (double)(s->cx_hi << 8) - v->heading;

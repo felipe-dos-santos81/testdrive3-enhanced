@@ -61,6 +61,7 @@ typedef struct {
     int  nv, nf, static_vert_end;
     s16  vx[ENH_MAX_VERTS], vy[ENH_MAX_VERTS], vz[ENH_MAX_VERTS];
     u16  face[ENH_MAX_FACES][5];       /* w0, w1, w2, w3, colour pair */
+    u16  order[ENH_MAX_FACES];         /* the game's depth order (nearest first), face indices */
     int  nobj;
     EnhObj obj[ENH_MAX_OBJS];
     u8   point_sizes[4], line_widths[4];
@@ -90,6 +91,7 @@ typedef struct {
     int  msg_rows;                     /* rows of V not copied because of a message box (msg_protect) */
     bool mirror;                       /* M was copied with 3D content (mirror on, not invalid) */
     u8   vbuf[0x7800];                 /* V as presented */
+    u8   fbuf[0x7800];                 /* V as the frame drawn before that left it (the snapshot then) */
     u8   mbuf[88 * 19];                /* M as presented */
 } EnhPresent;
 extern EnhPresent enh_present;
