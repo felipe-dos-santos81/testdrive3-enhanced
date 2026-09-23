@@ -7,6 +7,7 @@
 #include "platform/plat_priv.h"
 #include "game/flow.h"
 #include "host.h"
+#include "enhanced/enhanced.h"
 
 #define VIDEO_MODE_VGA 0x13
 
@@ -214,4 +215,5 @@ void view_present(void)
         si = (u16)(si + bp);
         di = (u16)(di + bp);
     } while (--dl);
+    enh_view_presented();                       /* ENH: where V and M are on the screen now */
 }

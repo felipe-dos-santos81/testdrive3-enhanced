@@ -1,6 +1,7 @@
 /* Game flow (game_flow.md §4.13-4.14): race_run (one leg: stage load, the frame loop, surface events, the
  * frame pacing), the car reset at a leg (re)start and the stage / leg map loaders. Segment 0792. */
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* 0792:000c race_run — game_flow.md §4.13 (verified) */
 void race_run(void)
@@ -34,6 +35,7 @@ void race_run(void)
     for (;;) {
         u16 now = DSW(DS_tick_count);                          /* the pacing reference (iVar2) */
         if (DSW(DS_race_state) == 3) {                         /* leave */
+            enh_stop();                                        /* ENH */
             if (DSB(DS_race_computer_cars) != 0) opponent_times_finalize();
             DSB(DS_shake) = 1;
             screen_shake_step();
@@ -220,7 +222,10 @@ void stage_load_objects(void)
         file_load_near(DS_path_scene, DS_sprite_set);
     }
     leg_map_load();
-    if (DSB(DS_menu_preview) == 0) sprites_prescale();
+    if (DSB(DS_menu_preview) == 0) {
+        sprites_prescale();
+        enh_sprites_loaded();                                  /* ENH: native sprite images */
+    }
     if (DSB(DS_menu_preview) == 0) {
         flow_strcpy(DS_path_scene + 9, 0x11B3);                /* "T.BIN" */
         file_load_far(DS_path_scene, ds_far(DS_tiles_scene));

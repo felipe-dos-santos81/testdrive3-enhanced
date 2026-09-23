@@ -1,14 +1,14 @@
-# Test Drive III (the launcher)
+# Test Drive III Enhanced (the launcher)
 
-`Test Drive III.exe` starts `td3port`, the SDL3 port of Test Drive III: The Passion, with the options chosen
-in its window. It is built with [wxWidgets](https://www.wxwidgets.org/) 3.2 from the platform's own controls,
-like the Test Drive II Enhanced launcher it is modelled on.
+`Test Drive III Enhanced.exe` starts `testdrive3-enhanced`, Test Drive III: The Passion on SDL3 with the
+enhanced view, with the options chosen in its window. It is built with [wxWidgets](https://www.wxwidgets.org/) 3.2 from the platform's own controls,
+like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
 
 ## The window
 
 * **Game files**
   * **Folder**: the folder with the original game's files (default `Game` beside the launcher).
-  * **Program**: `td3port.exe` (default: beside the launcher).
+  * **Program**: `testdrive3-enhanced.exe` (default: beside the launcher).
   * The line below says how many cars and courses the folder has, or what is missing (`TDIII.EXE`,
     `PLAYDISK.DAT`, `DATAA/B/C.DAT`, `INSTR.DAT`). **Play** stays greyed out until the folder and the program
     are there.
@@ -25,22 +25,28 @@ like the Test Drive II Enhanced launcher it is modelled on.
   * **Sound** (`--sound`): AdLib / Sound Blaster (through Nuked-OPL3) or the PC speaker. `TD3.CFG` is not
     changed.
   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
+* **Picture** (the enhanced view, `../ENHANCED.md`):
+  * **Graphics**: *Enhanced* (the 3D view and the mirror drawn again, smooth and at a high resolution) or
+    *Original* (`--classic`: the game's own 320 x 200 picture, scaled).
+  * **Resolution** (`--res-scale`, default 1280 x 800): the size of the picture; the window scales it to fit.
+  * **Anti-aliasing** (`--aa`, default 2 x 2): samples per pixel; *Off* on a slow computer.
+  * **Motion** (`--motion-delay`): *Smooth* (default, half a game frame behind the game, the other half
+    guessed), *Smoothest* (a whole frame behind, never guesses) or *Most direct* (no delay, guesses ahead).
 * **Keys in the game**: a reminder of the game's keys.
 * **Play** starts the game; the launcher stays open. **About**: version, author and links.
 
-Everything is remembered in `%APPDATA%\Test Drive III\settings.ini` (`~/.config/test-drive-iii` on Linux). A
+Everything is remembered in `%APPDATA%\Test Drive III Enhanced\settings.ini` (`~/.config/test-drive-iii-enhanced` on Linux). A
 folder or program left at its default is stored empty, so it follows the launcher if the whole folder moves.
 Delete the file to go back to the defaults.
 
 ## Building
 
 Needs CMake 3.24, a C++17 compiler and wxWidgets 3.2 (MSYS2 `mingw64`: `mingw-w64-x86_64-wxwidgets3.2-msw`;
-Debian and Ubuntu: `libwxgtk3.2-dev`). To build it beside `td3port.exe`, add `-DTD3_LAUNCHER=ON` when
-configuring the port:
+Debian and Ubuntu: `libwxgtk3.2-dev`). The main build makes it beside `testdrive3-enhanced.exe` (`-DTD3E_LAUNCHER=OFF` leaves it out):
 
 ```bash
-cmake -S td3port -B td3port/build -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Release -DTD3_LAUNCHER=ON
-cmake --build td3port/build
+cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
 It also builds on its own (`cmake -S launcher -B launcher/build -G Ninja`); then choose the program in the

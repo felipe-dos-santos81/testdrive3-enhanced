@@ -1,6 +1,7 @@
 /* Game flow (game_flow.md §4.8-4.11): the main select screen with the rotating car, the driver options,
  * car select and course select. Segment 01f4. */
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* PORT: the main menu renders its 3D preview unpaced in the original; game_flow.md §7 recommends the race
  * loop's rule with the original constant: at least 5 timer ticks per loop (~4.4 s per turn of the car). */
@@ -82,6 +83,7 @@ s16 main_menu(void)
                 DSB(DS_kbd_key) = 0;
             }
             DSB(DS_menu_preview) = 0;
+            enh_stop();                                        /* ENH */
             pal_fade_out_01F4_1C72();
             flow_page(0);
             if (flow_vga()) {

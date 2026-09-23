@@ -22,7 +22,7 @@ static void (*tick_handler)(void);
 static void (*kbd_handler)(u8);
 static void (*focus_lost_handler)(void);
 static bool (*frame_source)(u32 *);
-static u32 frame[HOST_FRAME_MAX_W * HOST_FRAME_MAX_H];
+static u32 *frame;                      /* frame_w x frame_h */
 static int frame_w = 320, frame_h = 200;
 #define VIEW_W(w) (w)                   /* logical presentation: frame width x 3/4 of it (4:3) */
 #define VIEW_H(w) ((w) * 3 / 4)
@@ -79,8 +79,11 @@ bool host_init(const char *dir, int window_scale, bool fullscreen)
     return true;
 }
 
+static void pool_shutdown(void);
+
 void host_shutdown(void)
 {
+    pool_shutdown();
     if (gamepad) SDL_CloseGamepad(gamepad);
     if (audio) SDL_DestroyAudioStream(audio);
     if (texture) SDL_DestroyTexture(texture);
@@ -99,11 +102,15 @@ void host_set_frame_source(bool (*compose)(u32 *), int w, int h)
     frame_source = compose;
     frame_w = SDL_clamp(w, 1, HOST_FRAME_MAX_W);
     frame_h = SDL_clamp(h, 1, HOST_FRAME_MAX_H);
+    SDL_free(frame);
+    frame = SDL_calloc((size_t)frame_w * frame_h, sizeof *frame);
+    if (!frame) host_fatal("out of memory for a %dx%d frame", frame_w, frame_h);
     /* The 200-line picture fills a 4:3 area, as it did on a VGA monitor. */
     SDL_SetRenderLogicalPresentation(renderer, VIEW_W(frame_w), VIEW_H(frame_w), SDL_LOGICAL_PRESENTATION_LETTERBOX);
     if (texture) SDL_DestroyTexture(texture);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, frame_w, frame_h);
-    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+    /* ENH: a high-resolution frame is filtered when the window is not an exact multiple of it */
+    SDL_SetTextureScaleMode(texture, frame_w > 320 ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST);
 }
 
 static Uint64 tick_due_ns(Uint64 n)
@@ -261,6 +268,82 @@ void host_wait_vretrace(void)
     while (SDL_GetTicksNS() - clock_start_ns < next) host_pump();
 }
 
+/* ---------------------------------------------------------------- ENH: clock, worker pool */
+
+u64 host_time_ns(void) { return SDL_GetTicksNS(); }
+u64 host_tick_ns(void) { return tick_due_ns(ticks_run); }
+
+#define POOL_MAX 15
+static SDL_Thread *pool_threads[POOL_MAX];
+static int pool_size = -1;                          /* -1 = not started */
+static SDL_Semaphore *pool_wake, *pool_done;
+static SDL_AtomicInt pool_next;
+static int pool_count;
+static void (*pool_fn)(int, void *);
+static void *pool_ctx;
+static bool pool_quit;
+
+static void pool_run(void)
+{
+    for (;;) {
+        int i = SDL_AddAtomicInt(&pool_next, 1);     /* returns the previous value */
+        if (i >= pool_count) return;
+        pool_fn(i, pool_ctx);
+    }
+}
+
+static int pool_worker(void *unused)
+{
+    (void)unused;
+    for (;;) {
+        SDL_WaitSemaphore(pool_wake);
+        if (pool_quit) return 0;
+        pool_run();
+        SDL_SignalSemaphore(pool_done);
+    }
+}
+
+static void pool_start(void)
+{
+    int n = SDL_GetNumLogicalCPUCores() - 1;
+    if (n > POOL_MAX) n = POOL_MAX;
+    pool_size = 0;
+    if (n <= 0) return;
+    pool_wake = SDL_CreateSemaphore(0);
+    pool_done = SDL_CreateSemaphore(0);
+    if (!pool_wake || !pool_done) return;
+    for (int i = 0; i < n; i++) {
+        pool_threads[i] = SDL_CreateThread(pool_worker, "pool", NULL);
+        if (!pool_threads[i]) break;
+        pool_size++;
+    }
+}
+
+static void pool_shutdown(void)
+{
+    if (pool_size <= 0) return;
+    pool_quit = true;
+    for (int i = 0; i < pool_size; i++) SDL_SignalSemaphore(pool_wake);
+    for (int i = 0; i < pool_size; i++) SDL_WaitThread(pool_threads[i], NULL);
+    SDL_DestroySemaphore(pool_wake);
+    SDL_DestroySemaphore(pool_done);
+    pool_size = 0;
+}
+
+void host_parallel_for(int n, void (*fn)(int i, void *ctx), void *ctx)
+{
+    if (n <= 0) return;
+    if (pool_size < 0) pool_start();
+    pool_fn = fn;
+    pool_ctx = ctx;
+    pool_count = n;
+    SDL_SetAtomicInt(&pool_next, 0);
+    int helpers = pool_size < n - 1 ? pool_size : n - 1;
+    for (int i = 0; i < helpers; i++) SDL_SignalSemaphore(pool_wake);
+    pool_run();
+    for (int i = 0; i < helpers; i++) SDL_WaitSemaphore(pool_done);
+}
+
 void host_set_frame_ticks(int ticks) { frame_ticks = ticks < 1 ? 1 : ticks; }
 int  host_frame_ticks(void) { return frame_ticks; }
 
@@ -416,8 +499,8 @@ void host_mouse_read(s16 *x, s16 *y, u8 *buttons)
     /* Logical presentation is 320 x 240 (4:3); the game's screen is 320 x 200. */
     float px = SDL_clamp(mouse_x, 0.0f, (float)VIEW_W(frame_w) - 1);
     float py = SDL_clamp(mouse_y, 0.0f, (float)VIEW_H(frame_w) - 1);
-    if (x) *x = (s16)(px * frame_w / VIEW_W(frame_w));
-    if (y) *y = (s16)(py * frame_h / VIEW_H(frame_w));
+    if (x) *x = (s16)(px * 320 / VIEW_W(frame_w));
+    if (y) *y = (s16)(py * 200 / VIEW_H(frame_w));
     SDL_MouseButtonFlags b = SDL_GetMouseState(NULL, NULL);
     if (buttons) *buttons = (u8)(((b & SDL_BUTTON_LMASK) ? 1 : 0) | ((b & SDL_BUTTON_RMASK) ? 2 : 0));
 }

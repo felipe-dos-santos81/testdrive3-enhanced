@@ -1,5 +1,6 @@
 #define RENDER3D_INTERNAL
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* render3d: cockpit overlays drawn into the view buffer V after the faces and sprites (render3d.md §4.12):
  * rain streaks / snow flakes, windscreen drops, wipers, headlight beams, the dashboard edge.
@@ -34,6 +35,7 @@ void overlay_quads4_draw(u16 edge);
 void cockpit_overlays(void)
 {
     precipitation_draw();
+    enh_ov_pixels();                                     /* ENH: rain / snow pixels */
     if (DSB(DS_ext_view) == 0) {
         headlight_beam_draw();
         dashboard_edge_draw();
@@ -276,6 +278,7 @@ no_store:
         }
     }
     windscreen_drops_draw();
+    enh_ov_pixels();                                     /* ENH: windscreen drops */
     {
         u16 bx = (u16)((DSB(DS_wiper_phase) & 7) * 12);
         u16 si = 0xC68;
@@ -320,7 +323,9 @@ void headlight_beam_draw(void)
             DSB(DS_face_type) = 0;                       /* OR mode: brightens V */
         }
         DSW(DS_face_ptr) = 0xBC7D;
+        enh_ov_quad(0xC66, 0xC60, 0xC62, 0xC64, 0xBC7D, DSW(DS_colour), DSB(DS_face_type) == 0);   /* ENH */
         quad_fill(0xC66, 0xC60, 0xC62, 0xC64, DGROUP);   /* BX, SI, DI, BP */
+        enh_ov_skip();                                   /* ENH */
     }
 }
 
@@ -351,6 +356,15 @@ void dashboard_edge_draw(void)
 void overlay_quads4_draw(u16 edge)
 {
     DSB(DS_face_type) = 0x70;
+    /* ENH: the four quads and two edge lines are drawn again by the enhanced view */
+    enh_ov_quad(0xC6E, 0xC68, 0xC6A, 0xC6C, 0xBC85, DSW(DS_colour), false);
+    enh_ov_quad(0xC72, 0xC6C, 0xC6E, 0xC70, 0xBC8D, DSW(DS_colour), false);
+    enh_ov_quad(0xC7A, 0xC74, 0xC76, 0xC78, 0xBC95, DSW(DS_colour), false);
+    enh_ov_quad(0xC7E, 0xC78, 0xC7A, 0xC7C, 0xBC9D, DSW(DS_colour), false);
+    if (edge != 0) {
+        enh_ov_line(0xC6A, 0xC6C, 0xBC89, edge);
+        enh_ov_line(0xC76, 0xC78, 0xBC99, edge);
+    }
     DSW(DS_face_ptr) = 0xBC85;
     quad_fill(0xC6E, 0xC68, 0xC6A, 0xC6C, DGROUP);       /* BX, SI, DI, BP */
     DSW(DS_face_ptr) = 0xBC8D;
@@ -360,8 +374,10 @@ void overlay_quads4_draw(u16 edge)
     DSW(DS_face_ptr) = 0xBC9D;
     quad_fill(0xC7E, 0xC78, 0xC7A, 0xC7C, DGROUP);
     DSW(DS_vert_base) = 0;
-    if (edge == 0) return;
-    DSW(DS_colour) = edge;
-    line_draw(0xC6A, 0xC6C, R3_SX(0xC6A), R3_SX(0xC6C), ds_ptr(0xBC89));
-    line_draw(0xC76, 0xC78, R3_SX(0xC76), R3_SX(0xC78), ds_ptr(0xBC99));
+    if (edge != 0) {
+        DSW(DS_colour) = edge;
+        line_draw(0xC6A, 0xC6C, R3_SX(0xC6A), R3_SX(0xC6C), ds_ptr(0xBC89));
+        line_draw(0xC76, 0xC78, R3_SX(0xC76), R3_SX(0xC78), ds_ptr(0xBC99));
+    }
+    enh_ov_skip();                                       /* ENH */
 }

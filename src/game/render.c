@@ -6,6 +6,7 @@
  * 6666 slope_to_roll_code, 76ec frame_update, 77d5 frame_draw. */
 #define RENDER3D_INTERNAL
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* 0e12:409c view_setup — render3d.md §4.2 (view size from DS:09C4 / B6DC; patches the 24 clip immediates
  * listed at DS:BAE4 — PORT: they stay in mem[] at their code addresses and the rasterizers read them there) */
@@ -467,10 +468,13 @@ void frame_draw(void)
             if (DSB(DS_surface_under_car) == 0x0E) { DSB(DS_crash_water) = 1; DSB(DS_water_anim) = 1; }
             crash_start();                                /* 0f31 */
         }
+        enh_ov_begin();                                   /* ENH: overlays recorded for the enhanced view */
         cockpit_overlays();                               /* 46c0 */
         if (DSB(DS_crashed) != 0) replay_start();         /* 4c51 */
         mirror_frame_draw();                              /* 7c21 */
+        enh_ov_pixels();                                  /* ENH: the mirror rim in V */
     }
     DSW(DS_page_cur) = 0;
     gfx_set_draw_page(0);
+    enh_frame_drawn();                                    /* ENH: the frame becomes the newest snapshot */
 }

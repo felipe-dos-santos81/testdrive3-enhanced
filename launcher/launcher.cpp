@@ -38,6 +38,16 @@ const char* const SECTION = "Game";
 const int MIN_SCALE = 1, MAX_SCALE = 6, DEFAULT_SCALE = 3;
 // The game's speed: timer ticks (145.6 a second) per frame while driving (testdrive3-enhanced --frame-ticks).
 const int MIN_TICKS = 5, MAX_TICKS = 40, DEFAULT_TICKS = 23;
+// The enhanced view: the picture's resolution (320x200 times this), anti-aliasing (samples per pixel along each
+// axis) and how far the smooth motion runs behind the game (percent of a game frame; presets).
+const int MIN_RES = 1, MAX_RES = 8, DEFAULT_RES = 4;
+const int MAX_AA = 4, DEFAULT_AA = 2;
+struct MotionPreset { int delay; const char* name; };
+const MotionPreset MOTION[] = {
+    {50, "Smooth (recommended)"},
+    {100, "Smoothest: a game frame behind"},
+    {0, "Most direct: no delay"},
+};
 
 #ifdef __WXMSW__
 HRESULT CALLBACK AboutCallback(HWND hwnd, UINT msg, WPARAM, LPARAM lp, LONG_PTR) {
@@ -183,6 +193,34 @@ LauncherDialog::LauncherDialog()
     fullscreen_ = new wxCheckBox(ob, wxID_ANY, "Start in f&ull screen (Alt+Enter switches)");
     optionsBox->Add(fullscreen_, 0, wxALL, gap);
 
+    // Enhanced view
+    auto* viewBox = new wxStaticBoxSizer(wxVERTICAL, this, "Picture");
+    wxWindow* vb = viewBox->GetStaticBox();
+    auto* viewGrid = new wxFlexGridSizer(2, gap, gap);
+    graphics_ = ChoiceRow(vb, viewGrid, "&Graphics:",
+                          "Enhanced: the 3D view and the mirror drawn again at the resolution below, anti-aliased, "
+                          "and moving smoothly at the screen's rate between the game's own frames (about 6 a "
+                          "second). Original: the game's own 320 x 200 picture, scaled up.");
+    graphics_->Append("Enhanced: smooth, high resolution");
+    graphics_->Append("Original: 320 x 200, as the game drew it");
+    resolution_ = ChoiceRow(vb, viewGrid, "&Resolution:",
+                            "The size of the picture the game draws. The window shows it scaled to fit; lower it "
+                            "on a slow computer.");
+    for (int r = MIN_RES; r <= MAX_RES; ++r)
+        resolution_->Append(wxString::Format(L"%d × %d%s", 320 * r, 200 * r, r == 1 ? " (original)" : ""));
+    aa_ = ChoiceRow(vb, viewGrid, "&Anti-aliasing:",
+                    "Smooth polygon edges: every pixel of the 3D view is the average of several samples.");
+    aa_->Append("Off");
+    for (int a = 2; a <= MAX_AA; ++a) aa_->Append(wxString::Format(L"%d × %d samples", a, a));
+    motion_ = ChoiceRow(vb, viewGrid, "&Motion:",
+                        "The game moves everything about 6 times a second; the enhanced view moves the camera and "
+                        "the cars smoothly in between. Smooth runs half a game frame behind the game (and guesses "
+                        "the other half), Smoothest a whole frame (never guesses), Most direct shows the newest "
+                        "frame at once and guesses ahead.");
+    for (const auto& m : MOTION) motion_->Append(m.name);
+    viewBox->Add(viewGrid, 0, wxALL, gap);
+    graphics_->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) { UpdateState(); });
+
     // Keys
     auto* keysBox = new wxStaticBoxSizer(wxVERTICAL, this, "Keys in the game");
     wxWindow* kb = keysBox->GetStaticBox();
@@ -227,9 +265,12 @@ LauncherDialog::LauncherDialog()
     left->Add(filesBox, 0, wxEXPAND);
     left->Add(startBox, 0, wxEXPAND | wxTOP, margin);
     left->Add(optionsBox, 1, wxEXPAND | wxTOP, margin);
+    auto* right = new wxBoxSizer(wxVERTICAL);
+    right->Add(viewBox, 0, wxEXPAND);
+    right->Add(keysBox, 1, wxEXPAND | wxTOP, margin);
     auto* columns = new wxBoxSizer(wxHORIZONTAL);
     columns->Add(left, 0, wxEXPAND);
-    columns->Add(keysBox, 0, wxEXPAND | wxLEFT, margin);
+    columns->Add(right, 0, wxEXPAND | wxLEFT, margin);
     auto* all = new wxBoxSizer(wxVERTICAL);
     all->Add(columns, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, margin);
     all->Add(buttons, 0, wxEXPAND | wxALL, margin);
@@ -250,6 +291,14 @@ LauncherDialog::LauncherDialog()
     scale_->SetSelection(
         wxMax(MIN_SCALE, wxMin(MAX_SCALE, settings::GetInt(SECTION, "Scale", DEFAULT_SCALE))) - MIN_SCALE);
     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
+    graphics_->SetSelection(settings::GetInt(SECTION, "Classic", 0) != 0 ? 1 : 0);
+    resolution_->SetSelection(
+        wxMax(MIN_RES, wxMin(MAX_RES, settings::GetInt(SECTION, "Resolution", DEFAULT_RES))) - MIN_RES);
+    aa_->SetSelection(wxMax(1, wxMin(MAX_AA, settings::GetInt(SECTION, "AntiAliasing", DEFAULT_AA))) - 1);
+    const int delay = settings::GetInt(SECTION, "MotionDelay", MOTION[0].delay);
+    motion_->SetSelection(0);
+    for (size_t i = 0; i < sizeof MOTION / sizeof MOTION[0]; ++i)
+        if (MOTION[i].delay == delay) motion_->SetSelection(static_cast<int>(i));
     loading_ = false;
     Reload();
 
@@ -295,6 +344,9 @@ void LauncherDialog::UpdateState() {
     const bool ok = haveProgram && missing.empty() && !catalogue_.cars.empty() && !catalogue_.courses.empty();
     statusIcon_->Show(!ok);
     statusNote_->SetLabel(note);
+    const bool enhanced = graphics_->GetSelection() == 0;
+    aa_->Enable(enhanced);
+    motion_->Enable(enhanced);
     car_->Enable(!catalogue_.cars.empty());
     course_->Enable(!catalogue_.courses.empty());
     play_->Enable(ok);
@@ -331,6 +383,10 @@ void LauncherDialog::Play() {
     options.speaker = sound_->GetSelection() == 1;
     options.scale = scale_->GetSelection() + MIN_SCALE;
     options.fullscreen = fullscreen_->GetValue();
+    options.classic = graphics_->GetSelection() == 1;
+    options.resScale = resolution_->GetSelection() + MIN_RES;
+    options.aa = aa_->GetSelection() + 1;
+    options.motionDelay = MOTION[wxMax(0, motion_->GetSelection())].delay;
     wxString error;
     if (!LaunchGame(options, error)) wxMessageBox(error, APP_TITLE, wxOK | wxICON_ERROR, this);
 }
@@ -349,6 +405,10 @@ void LauncherDialog::Save() {
     settings::SetInt(SECTION, "Speaker", sound_->GetSelection() == 1 ? 1 : 0);
     settings::SetInt(SECTION, "Scale", scale_->GetSelection() + MIN_SCALE);
     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "Classic", graphics_->GetSelection() == 1 ? 1 : 0);
+    settings::SetInt(SECTION, "Resolution", resolution_->GetSelection() + MIN_RES);
+    settings::SetInt(SECTION, "AntiAliasing", aa_->GetSelection() + 1);
+    settings::SetInt(SECTION, "MotionDelay", MOTION[wxMax(0, motion_->GetSelection())].delay);
     settings::SaveWindowPosition(SECTION, this);
 }
 

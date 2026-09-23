@@ -15,10 +15,20 @@ void host_shutdown(void);
 void host_set_tick_handler(void (*handler)(void));
 
 /* Source of the displayed image: fills a w x h XRGB8888 frame and returns true if it changed since the
- * last call. Installed by the VGA model (platform/vga.c, 320x200 mode 13h). Shown with 4:3 aspect. */
-#define HOST_FRAME_MAX_W 320
-#define HOST_FRAME_MAX_H 200
+ * last call. Installed by the VGA model (platform/vga.c: 320x200 mode 13h times the output scale of the
+ * enhanced renderer, ENH). Shown with 4:3 aspect. */
+#define HOST_FRAME_MAX_W (320 * 8)
+#define HOST_FRAME_MAX_H (200 * 8)
 void host_set_frame_source(bool (*compose)(u32 *xrgb), int w, int h);
+
+/* ENH: monotonic host clock in nanoseconds, and the due time of the latest timer tick run (the time the
+ * tick belongs to, independent of when host_pump got to it). */
+u64 host_time_ns(void);
+u64 host_tick_ns(void);
+
+/* ENH: runs fn(i, ctx) for i = 0..n-1 on a worker pool (the calling thread takes part) and returns when
+ * all are done. fn must only touch data that no other index touches. */
+void host_parallel_for(int n, void (*fn)(int i, void *ctx), void *ctx);
 
 /* Runs due timer ticks (and their audio), handles window events and presents the screen when it
  * changed. Every busy-wait loop of the original (tick waits, key polls, delays) must call this.

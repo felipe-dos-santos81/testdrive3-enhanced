@@ -100,6 +100,10 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                "--frame-ticks", wxString::Format("%d", o.frameTicks),
                                "--sound", o.speaker ? "speaker" : "adlib"};
     if (o.fullscreen) args.push_back("--fullscreen");
+    args.insert(args.end(), {"--res-scale", wxString::Format("%d", o.resScale)});
+    if (o.classic) args.push_back("--classic");
+    else args.insert(args.end(), {"--aa", wxString::Format("%d", o.aa),
+                                  "--motion-delay", wxString::Format("%d", o.motionDelay)});
     if (!o.car.empty()) args.insert(args.end(), {"--car", o.car});
     if (!o.course.empty()) args.insert(args.end(), {"--course", o.course});
     if (o.skill > 0) args.insert(args.end(), {"--skill", wxString::Format("%d", o.skill)});
