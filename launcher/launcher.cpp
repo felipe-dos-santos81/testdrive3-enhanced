@@ -146,7 +146,7 @@ LauncherDialog::LauncherDialog()
     // Start
     auto* startBox = new wxStaticBoxSizer(wxVERTICAL, this, "Start");
     wxWindow* sb = startBox->GetStaticBox();
-    startBox->Add(GreyText(sb, "As if chosen in the game's menus, which can still change them."), 0,
+    startBox->Add(GreyText(sb, "As if chosen in the game's menus."), 0,
                   wxLEFT | wxRIGHT | wxTOP, gap);
     auto* startGrid = new wxFlexGridSizer(2, gap, gap);
     car_ = ChoiceRow(sb, startGrid, "&Car:", "The car the game starts with.");
@@ -173,10 +173,9 @@ LauncherDialog::LauncherDialog()
     speed_ = new wxSpinCtrl(ob, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(64), -1),
                             wxSP_ARROW_KEYS, MIN_TICKS, MAX_TICKS, DEFAULT_TICKS);
     speed_->SetToolTip("Timer ticks per frame while driving (145.6 ticks a second). The game moves the cars "
-                       "once per frame, so fewer ticks make everything faster: your car, the traffic, the police "
-                       "and the opponents. The race clock always counts real seconds. 14 is the recommended "
-                       "speed; at 10 the scenery passes about as fast as the speedometer says; 23 is the faithful port's default (the world "
-                       "passes at about a third of the speedometer); 5 is the original program's limit.");
+                       "once per frame, so fewer ticks make everything faster. The race clock always counts real "
+                       "seconds. 14 is the recommended speed; at 10 the scenery passes about as fast as the "
+                       "speedometer says; 23 is the faithful port's default; 5 is the original program's limit.");
     speedRow->Add(speed_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, gap);
     speedRow->Add(GreyText(ob, "ticks a frame: 14 recommended (fewer = faster)"), 0, wxALIGN_CENTER_VERTICAL);
     grid->Add(speedRow, 0, wxALIGN_CENTER_VERTICAL);
