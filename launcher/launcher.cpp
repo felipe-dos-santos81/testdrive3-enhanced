@@ -37,7 +37,7 @@ const char* const SECTION = "Game";
 
 const int MIN_SCALE = 1, MAX_SCALE = 6, DEFAULT_SCALE = 3;
 // The game's speed: timer ticks (145.6 a second) per frame while driving (testdrive3-enhanced --frame-ticks).
-const int MIN_TICKS = 5, MAX_TICKS = 40, DEFAULT_TICKS = 23;
+const int MIN_TICKS = 5, MAX_TICKS = 40, DEFAULT_TICKS = 10;
 // The enhanced view: the picture's resolution (320x200 times this), anti-aliasing (samples per pixel along each
 // axis) and how far the smooth motion runs behind the game (percent of a game frame; presets).
 const int MIN_RES = 1, MAX_RES = 8, DEFAULT_RES = 4;
@@ -172,11 +172,13 @@ LauncherDialog::LauncherDialog()
     auto* speedRow = new wxBoxSizer(wxHORIZONTAL);
     speed_ = new wxSpinCtrl(ob, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(64), -1),
                             wxSP_ARROW_KEYS, MIN_TICKS, MAX_TICKS, DEFAULT_TICKS);
-    speed_->SetToolTip("Timer ticks per frame while driving (145.6 ticks a second). The game moves the cars and "
-                       "its clock once per frame, so fewer ticks make everything faster. 5 is the original "
-                       "program's limit (as on a fast PC today); 29 runs the race clock in real time.");
+    speed_->SetToolTip("Timer ticks per frame while driving (145.6 ticks a second). The game moves the cars "
+                       "once per frame, so fewer ticks make everything faster: your car, the traffic, the police "
+                       "and the opponents. The race clock always counts real seconds. At 10 the scenery passes "
+                       "about as fast as the speedometer says; 23 is the faithful port's default (the world "
+                       "passes at about a third of the speedometer); 5 is the original program's limit.");
     speedRow->Add(speed_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, gap);
-    speedRow->Add(GreyText(ob, "ticks a frame: 23 recommended, 5 original (too fast)"), 0, wxALIGN_CENTER_VERTICAL);
+    speedRow->Add(GreyText(ob, "ticks a frame: 10 recommended (fewer = faster)"), 0, wxALIGN_CENTER_VERTICAL);
     grid->Add(speedRow, 0, wxALIGN_CENTER_VERTICAL);
     grid->Add(new wxStaticText(ob, wxID_ANY, "So&und:"), 0, wxALIGN_CENTER_VERTICAL);
     sound_ = new wxChoice(ob, wxID_ANY);
@@ -286,7 +288,7 @@ LauncherDialog::LauncherDialog()
     skill_->Append("Default (the game's last choice)");
     for (int s = 1; s <= 9; ++s) skill_->Append(wxString::Format(s <= 3 ? "%d (automatic gearbox)" : "%d", s));
     skill_->SetSelection(wxMax(0, wxMin(9, settings::GetInt(SECTION, "Skill", 0))));
-    speed_->SetValue(wxMax(MIN_TICKS, wxMin(MAX_TICKS, settings::GetInt(SECTION, "FrameTicks", DEFAULT_TICKS))));
+    speed_->SetValue(wxMax(MIN_TICKS, wxMin(MAX_TICKS, settings::GetInt(SECTION, "GameSpeed", DEFAULT_TICKS))));
     sound_->SetSelection(settings::GetInt(SECTION, "Speaker", 0) != 0 ? 1 : 0);
     scale_->SetSelection(
         wxMax(MIN_SCALE, wxMin(MAX_SCALE, settings::GetInt(SECTION, "Scale", DEFAULT_SCALE))) - MIN_SCALE);
@@ -401,7 +403,7 @@ void LauncherDialog::Save() {
     settings::SetString(SECTION, "Car", carCode_);
     settings::SetString(SECTION, "Course", courseCode_);
     settings::SetInt(SECTION, "Skill", skill_->GetSelection());
-    settings::SetInt(SECTION, "FrameTicks", speed_->GetValue());
+    settings::SetInt(SECTION, "GameSpeed", speed_->GetValue());
     settings::SetInt(SECTION, "Speaker", sound_->GetSelection() == 1 ? 1 : 0);
     settings::SetInt(SECTION, "Scale", scale_->GetSelection() + MIN_SCALE);
     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);

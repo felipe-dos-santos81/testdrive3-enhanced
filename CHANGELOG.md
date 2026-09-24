@@ -30,6 +30,11 @@
   - Steering felt jerky on small corrections: the game turns in lumps, and guessing half a frame ahead overshot
     each one. `--motion-delay` now defaults to 100 (interpolation only; launcher "Smooth"), and the horizon's
     bobbing is softened with a 60 ms low-pass.
+  - Cars felt slow with the smooth picture. Measured: the game moves a fixed distance per frame, and at the
+    faithful port's 23 ticks a frame the scenery passes at about a third of the speedometer's speed (the jerky
+    original hid it). Default game speed now 10 ticks (`--frame-ticks`, launcher "Game speed", stored under a new
+    key), and the race clock counts real seconds instead of frames (`ENH:` in `race_clock_hud`), so race times
+    stay real at any game speed.
 - Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing and motion.
 - Developer aids: `TD3_ENH_COMPARE=1|2` (enhanced and original side by side), `TD3_ENH_LOG=file` (per-frame
   camera and render time).

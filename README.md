@@ -20,7 +20,10 @@ redistributed, and you need to get it yourself.
   and the sky's banded gradient is a continuous one.
 * The mirror, the wipers, the dashboard edge and the headlight beams get the same treatment. The dashboard,
   the instruments, the menus and messages stay as the original drew them.
-* The draw distance, the scenery and the game itself are unchanged.
+* **True speed.** The game runs at 14.6 frames a second instead of the faithful port's 6.3 (`--frame-ticks 10`),
+  so the scenery passes at about the speed the speedometer shows (at 23 it passes at a third of it, which the
+  original's jerky picture hid), and the race clock counts real seconds instead of frames.
+* The draw distance, the scenery and the rest of the game are unchanged.
 
 ## How to play (Windows)
 
@@ -52,7 +55,7 @@ Keep the folder somewhere you can save files, not Program Files: the game saves 
 
 * **Game files**: the game folder and `testdrive3-enhanced.exe` (by default both beside the launcher).
 * **Start**: the car, course and skill level the game starts with, as if chosen in its own menus.
-* **Options**: game speed (timer ticks per frame while driving, default 23), sound, window size, full screen.
+* **Options**: game speed (timer ticks per frame while driving, default 10), sound, window size, full screen.
 * **Picture**: enhanced or original graphics, the resolution, anti-aliasing and the motion setting.
 
 Settings are remembered in `%APPDATA%\Test Drive III Enhanced\settings.ini`.
@@ -95,7 +98,7 @@ launcher's wxWidgets DLLs next to them. The MSYS2 `SDL3.dll` also needs `libicon
 | `--aa N` | Anti-aliasing: N×N samples per pixel (default 2, 1 = off; resolution × N is kept ≤ 16) |
 | `--motion-delay P` | How far the smooth view runs behind the game, in percent of a game frame (default 100: moves between the game's frames, never guesses ahead; 50 or 0 guess half or a whole frame ahead, answering sooner but overshooting when the steering changes) |
 | `--classic` | The original picture only, no enhanced view (scaled to `--res-scale`, default 1) |
-| `--frame-ticks N` | Game speed: timer ticks per frame while driving (default 23; 5 = the original's limit) |
+| `--frame-ticks N` | Game speed: timer ticks per frame while driving (default 10: the scenery passes about as fast as the speedometer says; the faithful port's 23 passes it at a third; 5 = the original's limit). The race clock counts real seconds at any speed |
 | `--sound adlib\|speaker` | Sound device (default: `TD3.CFG`'s, AdLib without it) |
 | `--car CODE`, `--course CODE` | Start with this car / course, e.g. `CCNSX`, `SCENE02` |
 | `--skill N` | Skill level 1–9 (1–3 automatic gearbox) |

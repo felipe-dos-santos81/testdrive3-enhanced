@@ -6,7 +6,7 @@
  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
  *   --scale       initial window scale: 320x240 times N (default 3)
  *   --fullscreen  start in full screen (Alt+Enter switches)
- *   --frame-ticks race frame pacing in 145.6 Hz timer ticks (default HOST_DEFAULT_FRAME_TICKS = 23;
+ *   --frame-ticks race frame pacing in 145.6 Hz timer ticks (default HOST_DEFAULT_FRAME_TICKS = 10;
  *                 5 = the original engine cap, 29 = the race clock's design rate; PLAN.md decision 4)
  *   --sound       overrides TD3.CFG's audio device: adlib (AdLib / Sound Blaster) or speaker (PC speaker)
  *   --car         the car as if chosen in the game's menu: a slot's base name, e.g. CCNSX (PLAYDISK.DAT)
@@ -14,7 +14,7 @@
  *   --skill       the skill level 1..9 as shown in the game (1-3 automatic gearbox)
  *   --res-scale   ENH: output resolution, 320x200 times N (default 4, 1..8)
  *   --aa          ENH: anti-aliasing, N x N samples per output pixel (default 2, 1..4; 1 = off)
- *   --motion-delay ENH: how far the smooth view runs behind the game, percent of a game frame (default 50;
+ *   --motion-delay ENH: how far the smooth view runs behind the game, percent of a game frame (default 100;
  *                 0 = no delay, extrapolated; 100 = a whole frame, interpolated only)
  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
  *   --check       load and verify the original executable, print a summary and exit (no window)

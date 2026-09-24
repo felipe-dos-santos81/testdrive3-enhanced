@@ -41,9 +41,10 @@ void host_wait_vretrace(void);
 
 /* Race frame pacing (PLAN.md decision 4). race_run waits until at least this many timer ticks have
  * passed since the frame started; the original constant is 5 (engine cap, ~29 fps: the game runs
- * 5.8x faster than the race clock's design rate of 5 fps, 29 ticks); the port defaults to
- * HOST_DEFAULT_FRAME_TICKS = 23 (~6.3 fps), chosen by play-testing as the speed that feels right. */
-#define HOST_DEFAULT_FRAME_TICKS 23
+ * 5.8x faster than the race clock's design rate of 5 fps, 29 ticks); the faithful port defaults to 23
+ * (~6.3 fps). ENH: 10 (~14.6 fps): the scenery then passes at about the speed the speedometer shows, and
+ * the race clock counts real time (hud_topbar.c race_clock_hud; ENHANCED.md "Game speed"). */
+#define HOST_DEFAULT_FRAME_TICKS 10   /* ENH: 23 in the faithful port; see ENHANCED.md "Game speed" */
 void host_set_frame_ticks(int ticks);
 int  host_frame_ticks(void);
 

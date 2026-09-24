@@ -1,6 +1,7 @@
 /* HUD top bar (hud.md §4.9): race clock, compass window, radar detector. Near routines of segment
  * 0e12 called from frame_update; they draw on the current page (page 0 at that point). */
 #include "game/game.h"
+#include "host.h"
 
 /* Scratch bytes the original uses for its divisions / loop counters (render3d names, other uses). */
 #define SCR_A DSB(DS_place_rot)       /* DS:946A */
@@ -15,15 +16,29 @@ static void topbar_digit(u8 d)
 /* 0e12:0b1d race_clock_hud — hud.md §4.9 (topbar_update) */
 void race_clock_hud(void)
 {
+    /* ENH: the clock counts real time (timer ticks) instead of frames. The original advances it one second
+     * every 5 frames, its design rate; at a faster game speed (--frame-ticks below 29) the whole game runs
+     * faster, and the clock and race times stay in real seconds. clock_frames / clock_sub keep their meaning
+     * (fifths of the second, and the digit derived from them). A frame counts at most two frames' worth of
+     * ticks, so a message box or pause does not advance the clock (the original's frames stop then too). */
+    static u32 acc_mticks;                                /* host-side: thousandths of a tick this second */
+    const u32 sec_mticks = 145652;                        /* 1193182 / 8192 ticks a second, x 1000 */
     if (DSW(DS_race_state) != 1 || DSB(DS_ext_view) != 0) {
         DSB(DS_clock_frames) = 0;
+        acc_mticks = 0;
         return;
     }
     if (DSB(DS_clock_running) != 0) {
-        DSB(DS_clock_frames)++;
-        u8 f = DSB(DS_clock_frames);
-        DSB(DS_clock_sub) = (u8)((u8)(f + (f >> 1)) >> 1);
-        if (DSB(DS_clock_frames) < 5) goto draw;
+        u32 t = DSB(DS_frame_ticks), cap = 2u * (u32)host_frame_ticks();
+        acc_mticks += (t < cap ? t : cap) * 1000u;
+        if (acc_mticks < sec_mticks) {
+            u8 f = (u8)(acc_mticks * 5u / sec_mticks);
+            DSB(DS_clock_frames) = f;
+            DSB(DS_clock_sub) = (u8)((u8)(f + (f >> 1)) >> 1);
+            goto draw;
+        }
+        acc_mticks -= sec_mticks;
+        if (acc_mticks >= sec_mticks) acc_mticks = 0;
         DSB(DS_clock_sec)++;
         DSB(DS_clock_sub) = 0;
     }

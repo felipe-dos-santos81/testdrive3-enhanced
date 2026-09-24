@@ -164,6 +164,25 @@ dithers; from afar a dither is its average, so a sample of a pair resolves to th
 colours (weight 128), the sky gradient uses the weight for its blend, sprites and overlay pixels are solid.
 Resolving averages `aa × aa` samples per output pixel through the current DAC (fades and flashes included).
 
+## Game speed
+
+The game moves every car a fixed distance per frame: nothing in the simulation depends on time (only the
+steering yaw uses the measured frame length `B70E`), and the race clock advances one second every 5 frames, its
+design rate. So how fast the world passes is purely the frame rate, `--frame-ticks`. Measured at the faithful
+port's 23 ticks (6.3 frames a second): at a speedometer reading of 96 the car moves 193 world units a frame; the
+cars are about 460 units long and 144 wide (1–1.4 cm a unit), so the scenery passes at 13–17 m/s, 30–40 mph —
+about a third of the speedometer (the game's own odometer claims 16 m a frame, six times the geometry). The
+original's 6-frame jumps of 2–3 m made that feel fast; drawn smoothly at the display rate it looks slow.
+
+`ENH:` the default is **10 ticks** (14.6 frames a second, 2.3 times faster: the scenery passes at about the
+speedometer's speed, and 0–100 takes about 6 s instead of 10), and the race clock counts real time instead of
+frames (`race_clock_hud`, `hud_topbar.c`): timer ticks of each frame, at most two frames' worth (a message box or
+pause does not advance it, as the original's frame count stops then), a second per 145.652 ticks; `clock_frames`
+and `clock_sub` keep their meaning (fifths of the second, and the digit made from them). Race times, the
+opponents' times and penalties are therefore in real seconds at any game speed. Everything else the game counts
+in frames (traffic, police, opponents, the lights, the wipers) runs faster together with the cars, as it did on
+fast PCs (the original program's own limit is 5 ticks).
+
 ## Controls
 
 `race_run` reads the controls three times a frame (`race_input` 0, 1, 2), all after the simulation step, so
