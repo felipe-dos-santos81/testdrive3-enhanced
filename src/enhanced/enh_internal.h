@@ -68,6 +68,8 @@ typedef struct {
     /* sprites */
     int  nspr;
     EnhSpr spr[ENH_MAX_SPRITES];
+    u16  sprite_count;                 /* DS:9A71: instances from here on are the tiles' children */
+    u16  world_cell, world_tab;        /* DS:BD34 / BD36: the cell and octant table the world was built for */
     u16  spr_min_dist, spr_far_limit;  /* DS:95CD, DS:B6E2 */
     u8   sprite_kind[32];              /* DS:95E1 */
     u8   sprite_max_size;              /* DS:BA0D */

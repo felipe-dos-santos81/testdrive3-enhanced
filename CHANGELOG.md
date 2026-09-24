@@ -35,6 +35,13 @@
     original hid it). Default game speed now 14 ticks (chosen by play-testing; 10 matches the speedometer) (`--frame-ticks`, launcher "Game speed", stored under a new
     key), and the race clock counts real seconds instead of frames (`ENH:` in `race_clock_hud`), so race times
     stay real at any game speed.
+  - Double images of trees and roadside sprites: when the car enters a new cell the game hands the tiles' sprite
+    slots out again in a new order, and the smooth view, matching sprites by slot, carried a tree from where
+    another one had stood for a game frame. Only sprites that move (the fixed instances, drifting clouds and
+    birds, crash debris) are carried now, and the tiles' slots never across a rebuild of the world.
+  - After returning from the chase view, the player's car kept the vertex range of its last chase-view frame
+    (the game does not emit it in the cockpit view); another car's vertices there were carried with the
+    player's motion. The player's car is no longer treated as a moving vehicle in the cockpit view.
 - Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing and motion.
 - Developer aids: `TD3_ENH_COMPARE=1|2` (enhanced and original side by side), `TD3_ENH_LOG=file` (per-frame
   camera and render time).

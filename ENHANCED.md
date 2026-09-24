@@ -65,8 +65,11 @@ or two late keeps moving; a game that stops — message boxes, pause, the crash 
   `traj_n` too, and turned to their exact interpolated heading: the original builds a model at the high byte
   of its heading (1.4° steps); here the difference to the full 16-bit heading is added around the object's
   position.
-* **Sprites** that move (drifting clouds, birds, the sun and moon, which follow the camera) likewise, matched by
-  instance.
+* **Sprites** that move (drifting clouds, birds, crash debris, the sun and moon, which follow the camera)
+  likewise, matched by instance. Only those: the other sprites never move, and the tiles' children (the
+  instances from `sprite_count` on: trees and roadside sprites) are handed out again in a new order whenever the
+  world is rebuilt (`last_cell` / `last_octab` changed), so a slot can hold another tree of the same kind a cell
+  away, which would be carried from there.
 * **Pitch.** The horizon row and the mirror's car pitch also go through a 60 ms low-pass: the game's pitch bobs
   by up to 20 rows between frames over bumps and while steering.
 * **Roll** is the original's shift code (`row offset = ±(x − centre) >> |code|`); the slope `2^−|code|` is

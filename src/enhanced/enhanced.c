@@ -219,8 +219,12 @@ void enh_frame_drawn(void)
         e->heading = DSW(DS_obj_heading + 2 * o);
         e->flags = DSW(DS_obj_flags + 2 * o);
         u16 b = DSW(DS_obj_vert_base + 2 * o), n = DSW(DS_obj_vert_count + 2 * o);
-        /* a moving vehicle emitted this frame: its range lies in the per-frame part after the parked ones */
-        bool moving = (e->flags & 0x2000) && n && b >= s->static_vert_end && b + n <= s->nv;
+        /* a moving vehicle emitted this frame: its range lies in the per-frame part after the parked ones. The
+         * player's car (object 0) is not emitted in the cockpit view (509b skips it) and keeps the range of the
+         * last chase-view frame, which now holds another car's vertices: carried with the player's motion, that
+         * car would be drawn out of place. */
+        bool moving = (e->flags & 0x2000) && n && b >= s->static_vert_end && b + n <= s->nv &&
+                      !(o == 0 && !s->ext_view);
         e->vbase = moving ? b : 0;
         e->vcount = moving ? n : 0;
         e->rbase = b;
@@ -237,6 +241,9 @@ void enh_frame_drawn(void)
         e->y = DSS(DS_sprite_y + 2 * e->inst);
         e->z = DSS(DS_sprite_z + 2 * e->inst);
     }
+    s->sprite_count = DSW(DS_sprite_count);
+    s->world_cell = DSW(DS_last_cell);
+    s->world_tab = DSW(DS_last_octab);
     s->spr_min_dist = DSW(DS_sprite_min_proj_dist);
     s->spr_far_limit = DSW(DS__4);
     for (int k = 0; k < 32; k++) s->sprite_kind[k] = DSB(DS_sprite_kind + k);
@@ -415,7 +422,11 @@ static void view_compute(void)
         }
     }
 
-    /* sprites: drifting ones (clouds, birds) carried like the camera */
+    /* sprites: the ones that move (the fixed instances 0..8 such as the sun and the moon, drifting clouds and
+     * birds, crash debris) carried like the camera. The rest never move, and the tiles' children are handed out
+     * again in a new order whenever the world is rebuilt (a new cell): matched by instance, a tree would be
+     * carried from where another tree stood, a displaced copy for a game frame. */
+    bool same_world = c->world_cell == p->world_cell && c->world_tab == p->world_tab;
     if (pair_ok) {
         for (int k = 0; k < 320; k++) spr_prev_index[k] = -1;
         for (int k = 0; k < p->nspr; k++) if (p->spr[k].inst < 320) spr_prev_index[p->spr[k].inst] = (s16)k;
@@ -423,7 +434,10 @@ static void view_compute(void)
     for (int k = 0; k < c->nspr; k++) {
         const EnhSpr *e = &c->spr[k];
         double x = e->x, y = e->y, z = e->z;
-        if (pair_ok && e->inst < 320 && spr_prev_index[e->inst] >= 0) {
+        u8 n = (u8)e->id;
+        bool moves = e->inst < 9 || (n & 0xC0) || (n >= 6 && n <= 8);
+        if (e->inst >= c->sprite_count && !same_world) moves = false;
+        if (pair_ok && moves && e->inst < 320 && spr_prev_index[e->inst] >= 0) {
             const EnhSpr *q = &p->spr[spr_prev_index[e->inst]];
             s16 ex = (s16)(e->x - q->x), ez = (s16)(e->z - q->z), ey = (s16)(e->y - q->y);
             if ((u8)e->id == (u8)q->id && abs(ex) < 0x400 && abs(ez) < 0x400 && abs(ey) < 0x400) {
