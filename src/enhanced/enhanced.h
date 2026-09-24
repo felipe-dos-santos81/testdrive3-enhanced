@@ -14,7 +14,10 @@
 #define ENH_DEFAULT_AA        2        /* samples per output pixel along each axis */
 #define ENH_MAX_AA            4
 #define ENH_MAX_SAMPLES       16       /* res scale x aa at most (samples per original pixel, each axis) */
-#define ENH_DEFAULT_MOTION_DELAY 50    /* percent of a game frame the smooth view runs behind the game */
+#define ENH_DEFAULT_MOTION_DELAY 100   /* percent of a game frame the smooth view runs behind the game: 100 = it
+                                          only interpolates between frames it has (never overshoots when the
+                                          steering changes) */
+#define ENH_PITCH_SMOOTH_MS   60.0     /* low-pass on the camera pitch (horizon row) */
 #ifndef ENH_BLEND_SPAN
 #define ENH_BLEND_SPAN 1.0             /* game frames over which a new frame's motion takes over */
 #endif

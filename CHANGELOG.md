@@ -27,6 +27,9 @@
     throttle, brake and steering register every frame.
   - Wheels of the other cars (lamp blobs) grew relative to the car as it drove away: the blob width is now the
     original's row sum and its radius the original's whole-pixel radius on average.
+  - Steering felt jerky on small corrections: the game turns in lumps, and guessing half a frame ahead overshot
+    each one. `--motion-delay` now defaults to 100 (interpolation only; launcher "Smooth"), and the horizon's
+    bobbing is softened with a 60 ms low-pass.
 - Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing and motion.
 - Developer aids: `TD3_ENH_COMPARE=1|2` (enhanced and original side by side), `TD3_ENH_LOG=file` (per-frame
   camera and render time).

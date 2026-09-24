@@ -44,9 +44,9 @@ const int MIN_RES = 1, MAX_RES = 8, DEFAULT_RES = 4;
 const int MAX_AA = 4, DEFAULT_AA = 2;
 struct MotionPreset { int delay; const char* name; };
 const MotionPreset MOTION[] = {
-    {50, "Smooth (recommended)"},
-    {100, "Smoothest: a game frame behind"},
-    {0, "Most direct: no delay"},
+    {100, "Smooth (recommended)"},
+    {50, "Balanced: half a frame guessed ahead"},
+    {0, "Most direct: a whole frame guessed ahead"},
 };
 
 #ifdef __WXMSW__
@@ -214,9 +214,9 @@ LauncherDialog::LauncherDialog()
     for (int a = 2; a <= MAX_AA; ++a) aa_->Append(wxString::Format(L"%d × %d samples", a, a));
     motion_ = ChoiceRow(vb, viewGrid, "&Motion:",
                         "The game moves everything about 6 times a second; the enhanced view moves the camera and "
-                        "the cars smoothly in between. Smooth runs half a game frame behind the game (and guesses "
-                        "the other half), Smoothest a whole frame (never guesses), Most direct shows the newest "
-                        "frame at once and guesses ahead.");
+                        "the cars smoothly in between. Smooth moves between the game's last two frames (never "
+                        "guesses, so small steering corrections stay smooth); Balanced and Most direct guess half "
+                        "or a whole frame ahead, which answers sooner but overshoots when the steering changes.");
     for (const auto& m : MOTION) motion_->Append(m.name);
     viewBox->Add(viewGrid, 0, wxALL, gap);
     graphics_->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) { UpdateState(); });
@@ -295,7 +295,7 @@ LauncherDialog::LauncherDialog()
     resolution_->SetSelection(
         wxMax(MIN_RES, wxMin(MAX_RES, settings::GetInt(SECTION, "Resolution", DEFAULT_RES))) - MIN_RES);
     aa_->SetSelection(wxMax(1, wxMin(MAX_AA, settings::GetInt(SECTION, "AntiAliasing", DEFAULT_AA))) - 1);
-    const int delay = settings::GetInt(SECTION, "MotionDelay", MOTION[0].delay);
+    const int delay = settings::GetInt(SECTION, "Motion", MOTION[0].delay);
     motion_->SetSelection(0);
     for (size_t i = 0; i < sizeof MOTION / sizeof MOTION[0]; ++i)
         if (MOTION[i].delay == delay) motion_->SetSelection(static_cast<int>(i));
@@ -408,7 +408,7 @@ void LauncherDialog::Save() {
     settings::SetInt(SECTION, "Classic", graphics_->GetSelection() == 1 ? 1 : 0);
     settings::SetInt(SECTION, "Resolution", resolution_->GetSelection() + MIN_RES);
     settings::SetInt(SECTION, "AntiAliasing", aa_->GetSelection() + 1);
-    settings::SetInt(SECTION, "MotionDelay", MOTION[wxMax(0, motion_->GetSelection())].delay);
+    settings::SetInt(SECTION, "Motion", MOTION[wxMax(0, motion_->GetSelection())].delay);
     settings::SaveWindowPosition(SECTION, this);
 }
 

@@ -361,8 +361,20 @@ static void view_compute(void)
     v->cam_z4 = out[1];
     v->heading = out[2];
     v->cam_y = out[3];
-    v->cam_row = out[4];
-    v->pitch = out[5];
+    /* The game's pitch (horizon row) bobs by up to 20 rows from one frame to the next over bumps and while
+     * steering; a short low-pass (ENH_PITCH_SMOOTH_MS) takes the edge off without delaying anything else. */
+    static double f_row, f_pitch;
+    static u64 f_last;
+    double dt = f_last ? (double)(s64)(now - f_last) / 1e6 : 0.0;
+    f_last = now;
+    if (!pair_ok || dt <= 0.0 || dt > 200.0) { f_row = out[4]; f_pitch = out[5]; }
+    else {
+        double k = 1.0 - exp(-dt / ENH_PITCH_SMOOTH_MS);
+        f_row += (out[4] - f_row) * k;
+        f_pitch += (out[5] - f_pitch) * k;
+    }
+    v->cam_row = compare_on() ? out[4] : f_row;
+    v->pitch = compare_on() ? out[5] : f_pitch;
     v->roll_slope = out[6];
     v->mroll_slope = out[7];
     v->roll = c->roll;

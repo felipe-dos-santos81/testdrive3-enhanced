@@ -93,7 +93,7 @@ launcher's wxWidgets DLLs next to them. The MSYS2 `SDL3.dll` also needs `libicon
 | `--fullscreen` | Start in full screen |
 | `--res-scale N` | Picture resolution: 320×200 times N (default 4 = 1280×800, 1–8) |
 | `--aa N` | Anti-aliasing: N×N samples per pixel (default 2, 1 = off; resolution × N is kept ≤ 16) |
-| `--motion-delay P` | How far the smooth view runs behind the game, in percent of a game frame (default 50; 100 = never guesses ahead, 0 = no delay) |
+| `--motion-delay P` | How far the smooth view runs behind the game, in percent of a game frame (default 100: moves between the game's frames, never guesses ahead; 50 or 0 guess half or a whole frame ahead, answering sooner but overshooting when the steering changes) |
 | `--classic` | The original picture only, no enhanced view (scaled to `--res-scale`, default 1) |
 | `--frame-ticks N` | Game speed: timer ticks per frame while driving (default 23; 5 = the original's limit) |
 | `--sound adlib\|speaker` | Sound device (default: `TD3.CFG`'s, AdLib without it) |

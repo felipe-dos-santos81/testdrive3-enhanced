@@ -30,8 +30,9 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
     *Original* (`--classic`: the game's own 320 x 200 picture, scaled).
   * **Resolution** (`--res-scale`, default 1280 x 800): the size of the picture; the window scales it to fit.
   * **Anti-aliasing** (`--aa`, default 2 x 2): samples per pixel; *Off* on a slow computer.
-  * **Motion** (`--motion-delay`): *Smooth* (default, half a game frame behind the game, the other half
-    guessed), *Smoothest* (a whole frame behind, never guesses) or *Most direct* (no delay, guesses ahead).
+  * **Motion** (`--motion-delay`): *Smooth* (default, 100: moves between the game's last two frames, never
+    guesses), *Balanced* (50) or *Most direct* (0), which guess half or a whole frame ahead: they answer sooner
+    but overshoot and pull back when the steering changes. Stored as `Motion` in `settings.ini`.
 * **Keys in the game**: a reminder of the game's keys.
 * **Play** starts the game; the launcher stays open. **About**: version, author and links.
 

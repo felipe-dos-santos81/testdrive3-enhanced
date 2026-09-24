@@ -51,8 +51,11 @@ The game moves everything once per frame (every 23 ticks = 158 ms by default). T
 snapshots `n−1` and `n`, or the configured pacing after a long gap), limited to 1.5 (a frame that is a tick
 or two late keeps moving; a game that stops — message boxes, pause, the crash sequence — holds).
 
-* **Camera.** `traj_n(t) = S_n + (x − L) · (S_n − S_{n−1})` with `L = --motion-delay / 100` (default 0.5):
-  the view runs `L` of a frame behind the game and extrapolates the rest. Each component (x, z, heading with
+* **Camera.** `traj_n(t) = S_n + (x − L) · (S_n − S_{n−1})` with `L = --motion-delay / 100` (default 1):
+  the view runs `L` of a frame behind the game and extrapolates the rest. The default interpolates only: the
+  game turns in lumps (its heading changes by 0, 64, 128 or 192 units a frame, a short steering tap is a single
+  lump), and any extrapolation overshoots each lump and pulls back, a wobble on every small correction (measured
+  over twelve steering taps: 23 heading reversals at `L` = 0.5 against the game's own 12 at `L` = 1). Each component (x, z, heading with
   16-bit wrap, height, row = pitch + horizon, car pitch for the mirror, the roll slopes) is blended from the
   previous trajectory `traj_{n−1}(t)` to `traj_n(t)` with `smoothstep(x)` over the frame, so neither position
   nor speed jumps when a new game frame arrives (C1-continuous). Measured over 8 s of driving and steering: the
@@ -64,6 +67,8 @@ or two late keeps moving; a game that stops — message boxes, pause, the crash 
   position.
 * **Sprites** that move (drifting clouds, birds, the sun and moon, which follow the camera) likewise, matched by
   instance.
+* **Pitch.** The horizon row and the mirror's car pitch also go through a 60 ms low-pass: the game's pitch bobs
+  by up to 20 rows between frames over bumps and while steering.
 * **Roll** is the original's shift code (`row offset = ±(x − centre) >> |code|`); the slope `2^−|code|` is
   interpolated.
 * Everything else (the static world, lamps, colours, blinking pairs, weather) is shown as the newest snapshot
@@ -187,7 +192,7 @@ the display rate (VSync).
 |---|---|---|
 | `--res-scale N` | 4 | picture 320 × 200 times N (1..8) |
 | `--aa N` | 2 | N × N samples per output pixel (1 = off; res scale × aa is kept ≤ 16) |
-| `--motion-delay P` | 50 | percent of a game frame the smooth view runs behind the game |
+| `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
 
 ## Developer aids
