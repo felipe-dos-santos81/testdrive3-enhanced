@@ -44,7 +44,7 @@ struct GameOptions {
     wxString car;           // --car: empty = the game's own last choice
     wxString course;        // --course: empty = the game's own last choice
     int skill = 0;          // --skill 1..9: 0 = the game's own last choice
-    int frameTicks = 10;    // --frame-ticks: the game's speed
+    int frameTicks = 14;    // --frame-ticks: the game's speed
     bool speaker = false;   // --sound speaker (else adlib)
     int scale = 3;          // --scale: the window is 320x240 times this
     bool fullscreen = false;  // --fullscreen

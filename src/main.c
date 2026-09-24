@@ -6,7 +6,7 @@
  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
  *   --scale       initial window scale: 320x240 times N (default 3)
  *   --fullscreen  start in full screen (Alt+Enter switches)
- *   --frame-ticks race frame pacing in 145.6 Hz timer ticks (default HOST_DEFAULT_FRAME_TICKS = 10;
+ *   --frame-ticks race frame pacing in 145.6 Hz timer ticks (default HOST_DEFAULT_FRAME_TICKS = 14;
  *                 5 = the original engine cap, 29 = the race clock's design rate; PLAN.md decision 4)
  *   --sound       overrides TD3.CFG's audio device: adlib (AdLib / Sound Blaster) or speaker (PC speaker)
  *   --car         the car as if chosen in the game's menu: a slot's base name, e.g. CCNSX (PLAYDISK.DAT)

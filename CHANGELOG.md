@@ -32,7 +32,7 @@
     bobbing is softened with a 60 ms low-pass.
   - Cars felt slow with the smooth picture. Measured: the game moves a fixed distance per frame, and at the
     faithful port's 23 ticks a frame the scenery passes at about a third of the speedometer's speed (the jerky
-    original hid it). Default game speed now 10 ticks (`--frame-ticks`, launcher "Game speed", stored under a new
+    original hid it). Default game speed now 14 ticks (chosen by play-testing; 10 matches the speedometer) (`--frame-ticks`, launcher "Game speed", stored under a new
     key), and the race clock counts real seconds instead of frames (`ENH:` in `race_clock_hud`), so race times
     stay real at any game speed.
 - Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing and motion.

@@ -18,7 +18,7 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
     named as their `.LST` names them. *Default* is the game's own last choice.
   * **Skill level** (`--skill`): 1-9 as the game shows it; 1-3 have an automatic gearbox.
 * **Options**
-  * **Game speed** (`--frame-ticks`, default 10): timer ticks (145.6 a second) per frame while driving. The
+  * **Game speed** (`--frame-ticks`, default 14, chosen by play-testing): timer ticks (145.6 a second) per frame while driving. The
     game moves the cars once per frame, so fewer ticks make everything faster: your car, the traffic, the police
     and the opponents. At 10 the scenery passes about as fast as the speedometer says; 23 (the faithful port's
     default) passes it at about a third. The race clock always counts real seconds. Stored as `GameSpeed`.

@@ -37,7 +37,7 @@ const char* const SECTION = "Game";
 
 const int MIN_SCALE = 1, MAX_SCALE = 6, DEFAULT_SCALE = 3;
 // The game's speed: timer ticks (145.6 a second) per frame while driving (testdrive3-enhanced --frame-ticks).
-const int MIN_TICKS = 5, MAX_TICKS = 40, DEFAULT_TICKS = 10;
+const int MIN_TICKS = 5, MAX_TICKS = 40, DEFAULT_TICKS = 14;
 // The enhanced view: the picture's resolution (320x200 times this), anti-aliasing (samples per pixel along each
 // axis) and how far the smooth motion runs behind the game (percent of a game frame; presets).
 const int MIN_RES = 1, MAX_RES = 8, DEFAULT_RES = 4;
@@ -174,11 +174,11 @@ LauncherDialog::LauncherDialog()
                             wxSP_ARROW_KEYS, MIN_TICKS, MAX_TICKS, DEFAULT_TICKS);
     speed_->SetToolTip("Timer ticks per frame while driving (145.6 ticks a second). The game moves the cars "
                        "once per frame, so fewer ticks make everything faster: your car, the traffic, the police "
-                       "and the opponents. The race clock always counts real seconds. At 10 the scenery passes "
-                       "about as fast as the speedometer says; 23 is the faithful port's default (the world "
+                       "and the opponents. The race clock always counts real seconds. 14 is the recommended "
+                       "speed; at 10 the scenery passes about as fast as the speedometer says; 23 is the faithful port's default (the world "
                        "passes at about a third of the speedometer); 5 is the original program's limit.");
     speedRow->Add(speed_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, gap);
-    speedRow->Add(GreyText(ob, "ticks a frame: 10 recommended (fewer = faster)"), 0, wxALIGN_CENTER_VERTICAL);
+    speedRow->Add(GreyText(ob, "ticks a frame: 14 recommended (fewer = faster)"), 0, wxALIGN_CENTER_VERTICAL);
     grid->Add(speedRow, 0, wxALIGN_CENTER_VERTICAL);
     grid->Add(new wxStaticText(ob, wxID_ANY, "So&und:"), 0, wxALIGN_CENTER_VERTICAL);
     sound_ = new wxChoice(ob, wxID_ANY);

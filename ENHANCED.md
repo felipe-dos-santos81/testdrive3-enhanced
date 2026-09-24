@@ -174,8 +174,9 @@ cars are about 460 units long and 144 wide (1–1.4 cm a unit), so the scenery p
 about a third of the speedometer (the game's own odometer claims 16 m a frame, six times the geometry). The
 original's 6-frame jumps of 2–3 m made that feel fast; drawn smoothly at the display rate it looks slow.
 
-`ENH:` the default is **10 ticks** (14.6 frames a second, 2.3 times faster: the scenery passes at about the
-speedometer's speed, and 0–100 takes about 6 s instead of 10), and the race clock counts real time instead of
+`ENH:` the default is **14 ticks** (10.4 frames a second, 1.6 times faster than the faithful port; chosen by
+play-testing). At 10 ticks (14.6 frames a second, 2.3 times faster) the scenery passes at about the
+speedometer's speed and 0–100 takes about 6 s instead of 10, and the race clock counts real time instead of
 frames (`race_clock_hud`, `hud_topbar.c`): timer ticks of each frame, at most two frames' worth (a message box or
 pause does not advance it, as the original's frame count stops then), a second per 145.652 ticks; `clock_frames`
 and `clock_sub` keep their meaning (fifths of the second, and the digit made from them). Race times, the
