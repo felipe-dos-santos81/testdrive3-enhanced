@@ -68,6 +68,37 @@ static void project(void)
 static double depth(int v) { return fabs(V->vy[v] - V->cam_y) + vdist[v]; }
 
 /* ------------------------------------------------------------------------------------------------------
+ * Distance haze (ENH, after Play Stunts' distance colouring): what is far away takes on some of the sky's
+ * colour at the horizon, from ENH_HAZE_NEAR to all of --haze at ENH_HAZE_FAR (depth-key units), smoothstep.
+ * The ground takes it by its angle below the horizon, as seen from ENH_HAZE_EYE over flat ground.
+ * ------------------------------------------------------------------------------------------------------ */
+
+static double haze_max;                          /* 0..255 at ENH_HAZE_FAR; 0 = off */
+static u8 ground_haze[ENH_HAZE_ROWS];
+
+static u32 haze_amount(double d)
+{
+    if (haze_max <= 0 || d <= ENH_HAZE_NEAR) return 0;
+    double x = (d - ENH_HAZE_NEAR) / (ENH_HAZE_FAR - ENH_HAZE_NEAR);
+    if (x > 1) x = 1;
+    return (u32)(x * x * (3 - 2 * x) * haze_max + 0.5);
+}
+
+static void haze_setup(void)
+{
+    haze_max = S->menu_preview ? 0 : enh_haze * 2.55;
+    for (int i = 0; i < ENH_HAZE_ROWS; i++) {
+        double a = (i + 0.5) / 32.0 / RAD2PX;              /* radians below the horizon */
+        ground_haze[i] = (u8)haze_amount(ENH_HAZE_EYE + ENH_HAZE_EYE / tan(a));
+    }
+}
+
+u32 enh_haze_colour(const EnhSnap *s)
+{
+    return s->gradient ? ENH_SOLID((u8)(s->sky_base + 5)) : ENH_PAIR(s->sky_pair);   /* raster_sky at d = 0 */
+}
+
+/* ------------------------------------------------------------------------------------------------------
  * Primitive helpers (coordinates in view pixels; x from 1/32 px)
  * ------------------------------------------------------------------------------------------------------ */
 
@@ -367,6 +398,16 @@ static void draw_face(int f)
     face_value = ENH_PAIR(pair);
     int v0 = w0 & 0x7FF, v1 = r[1] & 0x7FF, v2 = r[2] & 0x7FF, v3 = r[3] & 0x7FF;
     if (v0 >= S->nv || v1 >= S->nv) return;
+    /* ENH: haze by the average depth of the face's corners; not the headlight beams (they OR into what is
+     * below) nor, at night, the lamps */
+    int n = w0 >> 14;
+    if (haze_max > 0 && !face_or && (n != 0 || S->day)) {
+        int vs[4] = { v0, v1, v2, v3 }, m = n == 0 ? 1 : n + 1;
+        double d = 0;
+        int used = 0;
+        for (int k = 0; k < m; k++) if (vs[k] < S->nv) { d += depth(vs[k]); used++; }
+        face_value |= ENH_HAZE(haze_amount(d / used));
+    }
     switch (w0 >> 14) {
     case 0: draw_point(v0, w0); break;
     case 1: draw_line(v1, v0, w0); break;                     /* line_draw(bx = v1, si = v0) */
@@ -465,6 +506,8 @@ static void draw_sprite(const SprItem *it)
         p->sy0 = (float)(top * K);         p->sy1 = (float)((top + h) * K);
     }
     p->img = img;
+    /* ENH: haze by the depth key; not what stands above the eye (the sun, the moon, clouds, birds) */
+    p->value = V->spr_y[it->k] < V->cam_y ? ENH_HAZE(haze_amount(key)) : 0;
 }
 
 /* ------------------------------------------------------------------------------------------------------
@@ -482,10 +525,9 @@ static void sky_ground(void)
         p->sky_base = S->sky_base;
         p->hy0 = (float)(yl * K);
         p->hslope = (float)((yr - yl) / wpx);
+        p->ground = ENH_PAIR(S->ground_pair);                /* the ground below the horizon */
+        p->ground_haze = haze_max > 0 ? ground_haze : NULL;
     }
-    T = &enh_front;
-    double x[4] = { 0, W32, W32, 0 }, y[4] = { yl, yr, VROWS + 4, VROWS + 4 };
-    poly(4, x, y, ENH_PAIR(S->ground_pair), false);
 
     if (!S->mirror_on) return;
     /* 7b9b: the mirror's horizon from the car's pitch; the edge fills halve the rows once more */
@@ -531,6 +573,7 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     enh_target_reset(&enh_mirror, 88, 19, K);
 
     project();
+    haze_setup();
     sky_ground();
 
     /* faces farthest first in the game's own order; the keys at the view time only place the sprites */

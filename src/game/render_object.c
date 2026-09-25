@@ -1,5 +1,6 @@
 #define RENDER3D_INTERNAL
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* render3d: objects and vehicles (render3d.md §4.14): runtime face colours, parked / moving vehicle
  * emission, lighthouse beam, crossing-gate arms, the folding plate. Object arrays are u16[160] indexed by
@@ -10,6 +11,10 @@
 void obj_face_runtime_colours(u16 slot2_bx);
 /* 0e12:539d obj_emit_vehicle (BX = 2*slot, DX = Manhattan distance, ES = objects set segment) */
 void obj_emit_vehicle(u16 slot2_bx, u16 dist_dx, u16 oset_es);
+
+/* ENH: the far LOD (vehicles, some buildings) only in the original picture (--classic): the enhanced view is
+ * drawn at a much higher resolution, where the far models' missing detail shows, and the cost is no concern. */
+static bool far_lod(u16 dist_dx) { return dist_dx > 0x200 && !enh_enabled(); }
 
 /* Model lookup, inline in 52a3 / 4db6 (5ad4 / 5cf2 too): flags & 3Fh > 3 -> objects set (far DS:E54C, table of
  * offsets relative to its start); 3 -> DS:D7A4, 2 -> DS:CEBC (opponent POBs); 0, 1 -> far DS:CEA4 (player). */
@@ -242,7 +247,7 @@ u16 obj_emit_vehicle_moving(u16 slot2_bx, u16 dist_dx, FarPtr *faces_es_si)
     si++;
     u8 cl = rd8(es, si);                                 /* nv */
     si = (u16)(si + 7);                                  /* near vertices at +8 */
-    if (dist_dx > 0x200) {                               /* far LOD */
+    if (far_lod(dist_dx)) {                              /* far LOD (ENH) */
         si = (u16)(si - 4);
         ch = rd8(es, si);
         si++;
@@ -295,7 +300,7 @@ void obj_emit_vehicle(u16 slot2_bx, u16 dist_dx, u16 oset_es)
     si++;
     u8 cl = rd8(es, si);
     si = (u16)(si + 7);
-    if (dist_dx > 0x200) {
+    if (far_lod(dist_dx)) {                              /* far LOD (ENH) */
         si = (u16)(si - 4);
         ch = rd8(es, si);
         si++;

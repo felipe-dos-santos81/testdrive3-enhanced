@@ -99,7 +99,7 @@ typedef struct {
 extern EnhPresent enh_present;
 
 /* ---- options (enhanced.c) ---- */
-extern int enh_scale, enh_aa, enh_motion_delay;
+extern int enh_scale, enh_aa, enh_motion_delay, enh_haze;
 
 /* ---- the smooth view state of one displayed frame (enhanced.c) ---- */
 typedef struct {
@@ -126,15 +126,18 @@ bool enh_sprite_pick(u8 s, double a, const EnhSprImg **img, double *w, double *h
 
 /* ---- rasterising (enh_raster.c) ---- */
 
-/* A sample holds a colour pair and the weight of its high colour: lo | hi << 8 | weight << 16
- * (weight 128 = the original's two-colour dither seen from afar). */
+/* A sample holds a colour pair, the weight of its high colour and its distance haze:
+ * lo | hi << 8 | weight << 16 | haze << 24 (weight 128 = the original's two-colour dither seen from afar;
+ * haze 0..255 = none .. all the horizon's sky colour). */
 #define ENH_PAIR(p)          ((u32)(p) | 0x800000u)
 #define ENH_SOLID(c)         ((u32)(c) * 0x101u | 0x800000u)
+#define ENH_HAZE(h)          ((u32)(h) << 24)
+#define ENH_HAZE_ROWS        256       /* P_SKY ground haze table: entries, 1/32 view pixel apart below the horizon */
 
 typedef enum { P_POLY, P_SPRITE, P_BLOCKS, P_SKY } EnhPrimKind;
 typedef struct {
     EnhPrimKind kind;
-    u32 value;                         /* sample value (P_POLY, P_BLOCKS) */
+    u32 value;                         /* sample value (P_POLY, P_SKY's sky; P_SPRITE: the haze bits only) */
     bool or_mode;                      /* OR 08h into both colours instead of storing */
     int n;                             /* P_POLY: points */
     float x[16], y[16];                /* P_POLY: sample coordinates */
@@ -143,10 +146,13 @@ typedef struct {
     const EnhSprImg *img;
     /* P_BLOCKS: overlay pixels [first, first + count) of the snapshot, K x K samples each */
     int first, count;
-    /* P_SKY: horizon row at sample x = 0 and its slope (rows per sample), base colour, gradient on */
+    /* P_SKY: horizon row at sample x = 0 and its slope (rows per sample), base colour, gradient on; below the
+     * horizon the ground, hazed by the table (view pixels below the horizon * 32; NULL = no haze) */
     float hy0, hslope;
     u8 sky_base;
     bool gradient;
+    u32 ground;
+    const u8 *ground_haze;
 } EnhPrim;
 
 typedef struct {
@@ -164,3 +170,5 @@ void enh_target_raster(EnhTarget *t, const EnhSnap *snap);
 /* ---- the scene (enh_scene.c) ---- */
 extern EnhTarget enh_front, enh_mirror;
 void enh_scene_build(const EnhSnap *s, const EnhView *v);
+/* the colour the haze tends to: the sky at the horizon, as a sample value (resolved through the current DAC) */
+u32 enh_haze_colour(const EnhSnap *s);

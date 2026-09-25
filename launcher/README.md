@@ -33,6 +33,8 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
   * **Motion** (`--motion-delay`): *Smooth* (default, 100: moves between the game's last two frames, never
     guesses), *Balanced* (50) or *Most direct* (0), which guess half or a whole frame ahead: they answer sooner
     but overshoot and pull back when the steering changes. Stored as `Motion` in `settings.ini`.
+  * **Haze** (`--haze`): distance haze, what is far away takes on some of the sky's colour at the horizon:
+    *Normal* (default, 30), *Light* (15), *Strong* (50) or *Off* (0). Stored as `Haze` in `settings.ini`.
 * **Keys in the game**: a reminder of the game's keys.
 * **Play** starts the game; the launcher stays open. **About**: version, author and links.
 

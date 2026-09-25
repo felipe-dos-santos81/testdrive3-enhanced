@@ -103,7 +103,8 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
     args.insert(args.end(), {"--res-scale", wxString::Format("%d", o.resScale)});
     if (o.classic) args.push_back("--classic");
     else args.insert(args.end(), {"--aa", wxString::Format("%d", o.aa),
-                                  "--motion-delay", wxString::Format("%d", o.motionDelay)});
+                                  "--motion-delay", wxString::Format("%d", o.motionDelay),
+                                  "--haze", wxString::Format("%d", o.haze)});
     if (!o.car.empty()) args.insert(args.end(), {"--car", o.car});
     if (!o.course.empty()) args.insert(args.end(), {"--course", o.course});
     if (o.skill > 0) args.insert(args.end(), {"--skill", wxString::Format("%d", o.skill)});

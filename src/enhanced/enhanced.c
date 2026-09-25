@@ -11,6 +11,7 @@
 #include "../host.h"
 
 int enh_scale = ENH_DEFAULT_RES_SCALE, enh_aa = ENH_DEFAULT_AA, enh_motion_delay = ENH_DEFAULT_MOTION_DELAY;
+int enh_haze = ENH_DEFAULT_HAZE;
 static bool enabled = true;
 
 static EnhSnap snaps[2];
@@ -18,8 +19,9 @@ EnhSnap *enh_prev = &snaps[0], *enh_cur = &snaps[1];
 EnhPresent enh_present;
 static bool pair_ok;                  /* prev -> cur is a continuous step (interpolate / extrapolate) */
 
-void enh_init(bool on, int res_scale, int aa, int motion_delay)
+void enh_init(bool on, int res_scale, int aa, int motion_delay, int haze)
 {
+    enh_haze = haze < 0 ? 0 : haze > 100 ? 100 : haze;
     enabled = on;
     enh_scale = res_scale < 1 ? 1 : res_scale > ENH_MAX_RES_SCALE ? ENH_MAX_RES_SCALE : res_scale;
     enh_aa = aa < 1 ? 1 : aa > ENH_MAX_AA ? ENH_MAX_AA : aa;
@@ -364,6 +366,14 @@ static void view_compute(void)
         double o = blend ? rel[i] + ph_old * dp[i] : nw;
         out[i] = pc[i] + o + (nw - o) * w;
     }
+    /* The height never below the line through the last two frames, nor guessed downwards past the newest:
+     * early in a frame the blend still follows the old trajectory, which keeps falling after a landing and
+     * keeps level when the road turns up a slope, and a late frame extrapolates the fall. Either took the eye
+     * under the ground for a moment (the ground around the camera then drawn as a ceiling). */
+    if (!compare_on()) {
+        double floor_y = cc.y + (pair_ok ? fmin(ph, 0.0) * dn[3] : 0.0);
+        if (out[3] < floor_y) out[3] = floor_y;
+    }
     v->cam_x4 = out[0];
     v->cam_z4 = out[1];
     v->heading = out[2];
@@ -405,6 +415,7 @@ static void view_compute(void)
                 dx = ph * ex;
                 dz = ph * ez;
                 dy = ph * ((s16)e->y8 - (s16)q->y8) / 8.0;
+                if (ph > 0 && dy < 0) dy = 0;           /* not guessed downwards into the ground (as the camera) */
                 dh = ph * d16(e->heading, q->heading);
             }
         }
@@ -457,16 +468,28 @@ static void view_compute(void)
  * ------------------------------------------------------------------------------------------------------ */
 
 static const u32 *cpal;
+static u32 haze_rgb;                  /* the haze's colour through the current DAC */
 
-static inline u32 sample_rgb(u32 s)
+static inline u32 mix_rgb(u32 a, u32 b, u32 w)   /* w / 256 of b */
 {
-    u32 a = cpal[s & 0xFF], b = cpal[(s >> 8) & 0xFF], w = (s >> 16) & 0xFF;
-    if (a == b || w == 0) return a;
     u32 iw = 256 - w;
     u32 r = (((a >> 16) & 0xFF) * iw + ((b >> 16) & 0xFF) * w) >> 8;
     u32 g = (((a >> 8) & 0xFF) * iw + ((b >> 8) & 0xFF) * w) >> 8;
     u32 bl = ((a & 0xFF) * iw + (b & 0xFF) * w) >> 8;
     return r << 16 | g << 8 | bl;
+}
+
+static inline u32 pair_rgb(u32 s)
+{
+    u32 a = cpal[s & 0xFF], b = cpal[(s >> 8) & 0xFF], w = (s >> 16) & 0xFF;
+    if (a == b || w == 0) return a;
+    return mix_rgb(a, b, w);
+}
+
+static inline u32 sample_rgb(u32 s)
+{
+    u32 c = pair_rgb(s), h = s >> 24;
+    return h ? mix_rgb(c, haze_rgb, h) : c;
 }
 
 /* Output pixel block of the view pixel (c, r) of a target: S x S pixels, each the average of A x A samples. */
@@ -545,6 +568,7 @@ bool enh_compose(u32 *xrgb, const u32 pal[256])
     if (s->mirror_on) enh_target_raster(&enh_mirror, s);
 
     cpal = pal;
+    haze_rgb = pair_rgb(enh_haze_colour(s));
     PasteCtx pc = { xrgb, mp(0xA000, 0) };
     int rows = enh_present.rows < s->rows ? enh_present.rows : s->rows;
     host_parallel_for(rows, paste_front_row, &pc);

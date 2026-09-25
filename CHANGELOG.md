@@ -42,6 +42,22 @@
   - After returning from the chase view, the player's car kept the vertex range of its last chase-view frame
     (the game does not emit it in the cockpit view); another car's vertices there were carried with the
     player's motion. The player's car is no longer treated as a moving vehicle in the cockpit view.
-- Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing and motion.
+  - Keyboard steering eased in (`ENH:` in `steer_throttle`): the wheel went from the centre to full lock in two
+    frames at any speed. Away from the centre it now starts with small steps that grow with the time held, in
+    real time and slower at speed (full lock after about 0.4 s standing, 0.6 s at 150 mph); a counter-turn is
+    eased from a head start, stops at the centre as before and carries on past it without easing in again;
+    both keys and the mouse are not affected. The original's doubled turn at full lock grows over the
+    outer band of the wheel instead, to 1.5 times (`ENH:` in `sim_physics.c`).
+- Distance haze (`--haze`, default 30 %; launcher "Haze"), after the distance colouring of Play Stunts' upgraded
+  renderer (github.com/ACatWithEbola/playstunts): faces, trees and the ground take on some of the horizon's sky
+  colour with distance, through the current palette (day, night, weather and fades follow), which also softens
+  the scenery appearing at the edge of the view. Not the sun, moon or clouds, the headlight beams or, at night,
+  the lamps.
+- No far LOD with the enhanced view: vehicles and the buildings that have a simpler far model (barn, hangar,
+  houses) are always built with their full model (`ENH:` in `render_object.c`; `--classic` unchanged).
+- Seeing under the map for a moment when landing or driving into a steep slope: the smooth camera's blend still
+  followed the previous frame's motion (still falling, or still level) and took the eye below the ground. Its
+  height now stays at or above the line between the game's last two frames and is not guessed downwards.
+- Launcher: a "Picture" box with graphics (enhanced / original), resolution, anti-aliasing, motion and haze.
 - Developer aids: `TD3_ENH_COMPARE=1|2` (enhanced and original side by side), `TD3_ENH_LOG=file` (per-frame
   camera and render time).

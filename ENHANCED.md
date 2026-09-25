@@ -61,6 +61,11 @@ or two late keeps moving; a game that stops — message boxes, pause, the crash 
   nor speed jumps when a new game frame arrives (C1-continuous). Measured over 8 s of driving and steering: the
   largest frame-to-frame change of speed went from 450 to 38 units/s, of heading rate from 21600 to 1900 (plain
   extrapolation → blended).
+  The height is kept at or above the line through the last two snapshots and is never guessed downwards past
+  the newest: early in a frame the blend still follows the old trajectory, which keeps falling after a landing
+  and keeps level where the road turns up a steep slope, and a late frame extrapolates a fall; either put the
+  eye under the ground for a moment (the triangle around the camera then filled upwards, the map seen from
+  below). Moving vehicles are likewise not guessed downwards.
 * **Moving vehicles** (traffic, police, opponents, the player's car in the external views) are carried with
   `traj_n` too, and turned to their exact interpolated heading: the original builds a model at the high byte
   of its heading (1.4° steps); here the difference to the full 16-bit heading is added around the object's
@@ -123,6 +128,12 @@ larger). Per face, as `3a7c`:
 The ground-slope, surface, crash and bump tests of the face drawer stay in the original renderer: the enhanced
 one only draws.
 
+`ENH:` no far LOD. Vehicles and some buildings (barn, hangar, houses) have a far model with fewer faces that
+`539d` / `52a3` use more than 200h (Manhattan, from the car) away; with the enhanced view on, the game always
+builds the near model (`far_lod` in `render_object.c`), since at the enhanced resolution the missing detail
+shows and the cost does not matter. `--classic` keeps the original's switch. The detail level's own choices
+(cells, trees, sprite range, F2) are unchanged.
+
 ## Sprites
 
 Each sprite is drawn from its native image (decoded from the sprite set at stage load, rows centred as
@@ -140,6 +151,26 @@ gradient (detail ≥ 1, VGA, no flash), the five four-row bands above the horizo
 gradient that follows the horizon, also when rolled (the original drops the gradient when the car rolls). The
 ground: the ground pair below the horizon. The mirror's sky and ground come from `7b9b`'s horizon (the car's
 pitch and roll, its halved rows included).
+
+## Distance haze
+
+`ENH:` after Play Stunts' distance colouring (a browser reconstruction of Stunts, whose engine TD3 shares; its
+upgraded renderer tints what is beyond five tiles by up to 25 % towards a pale sky colour). Here what is far
+away takes on some of the colour of the sky at the horizon (the gradient's lowest band, or the flat sky pair),
+resolved through the current DAC, so the haze follows the time of day, the weather, fades and flashes by
+itself. The amount is `--haze` (default 30 %) × `smoothstep` of the depth from `ENH_HAZE_NEAR` (C00h) to
+`ENH_HAZE_FAR` (3000h, depth-key units: the farthest faces are about 2800h at medium detail):
+
+* faces by the average depth of their corners (the key's own rule would haze a long face by its far end);
+  not the OR faces (headlight beams), nor the lamps at night;
+* sprites by their key; not those above the eye (the sun, the moon, clouds, birds);
+* the ground by its angle below the horizon, as seen from `ENH_HAZE_EYE` (50 units, the cockpit's eye over
+  the road) over flat ground: the haze gathers in the last few rows below the horizon and meets the sky's
+  colour there.
+
+The haze is the top byte of the sample (see Rasterising). Measured at medium detail: the faces reach depth
+keys of 9000..11000, the trees stop at 1100h (`B6E2`). Not in the main menu's preview, nor on the mirror's
+ground.
 
 ## Overlays
 
@@ -165,7 +196,8 @@ edges tile exactly).
 A sample holds a colour pair and the weight of its high colour. The original's faces are two-colour checkerboard
 dithers; from afar a dither is its average, so a sample of a pair resolves to the average of the two DAC
 colours (weight 128), the sky gradient uses the weight for its blend, sprites and overlay pixels are solid.
-Resolving averages `aa × aa` samples per output pixel through the current DAC (fades and flashes included).
+The top byte is the distance haze (0..255, the share of the horizon's sky colour). Resolving averages
+`aa × aa` samples per output pixel through the current DAC (fades and flashes included).
 
 ## Game speed
 
@@ -195,6 +227,21 @@ the car reacted to keys held up to a whole frame (158 ms) earlier. `ENH:` the fi
 one right before the physics. Measured: the steering wheel moves in the first frame after the key instead of the
 second. (The game's own steering still builds up over about three frames.)
 
+Keyboard steering (`steer_throttle`) moves the wheel (0..20h, centre 10h) by 1, 2, then 3 a read: from the
+centre to full lock in two frames at any speed, where the turn rate also doubles, so a tap jerked the car where
+the mouse (which sets the wheel directly) turns smoothly. `ENH:` away from the centre the wheel now moves by
+fractions that start at 0.85 a read and grow by 0.15 a read up to the original's 3, scaled by the frame's length
+(the same pace in seconds at any `--frame-ticks`) and by up to 40 % less at speed (150 mph and above).
+Measured at 14 ticks: full lock after 4 frames standing (the first frame moves the wheel 3 instead of 6),
+5 frames at 30 mph. Both keys and the mouse stay the original's. A counter-turn (the key turning the wheel back
+from the other side, 2 to 4 a read in the original) is eased the same way from a head start of 5 reads (1.6 a
+read standing), stops at the centre as the original does, and carries its pace on past it: from full right to
+full left in about 5 frames at 50 mph. The constants are `STEER_EASE_*` in `sim_controls.c`.
+
+At full lock (wheel 0 or 20h) the original doubles the turn (`sim_physics.c`, step 18): a jolt as the wheel
+gets there. `ENH:` the extra grows over the outer band instead, from none at 12 steps off the centre to 1.5
+times at full lock (16).
+
 ## Composition
 
 `platform/vga.c` scales the 320 × 200 VGA picture by `--res-scale` and calls `enh_compose`, which lays the
@@ -216,6 +263,7 @@ the display rate (VSync).
 | `--res-scale N` | 4 | picture 320 × 200 times N (1..8) |
 | `--aa N` | 2 | N × N samples per output pixel (1 = off; res scale × aa is kept ≤ 16) |
 | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
+| `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
 
 ## Developer aids
@@ -232,5 +280,6 @@ the display rate (VSync).
 
 ## Later
 
-Longer draw distance (more cells, larger sprite and object ranges), widescreen, the original's dither as an
+Longer draw distance (more cells, larger sprite and object ranges; the haze would then move out with it),
+widescreen, the original's dither as an
 option, weather effects animated at the display rate, the menu preview's own pacing.

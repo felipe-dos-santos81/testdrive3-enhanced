@@ -101,7 +101,7 @@ static void raster_sprite(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
             if (i < 0) i = 0;
             if (i >= img->w) i = img->w - 1;
             u8 v = src[i];
-            if (v) row[c] = ENH_SOLID(v);
+            if (v) row[c] = ENH_SOLID(v) | p->value;
         }
     }
 }
@@ -123,19 +123,29 @@ static void raster_blocks(const EnhTarget *t, const EnhPrim *p, const EnhSnap *s
     }
 }
 
-/* the sky: flat, or the original's five bands of four rows above the horizon blended into a gradient */
+/* the sky: flat, or the original's five bands of four rows above the horizon blended into a gradient; the
+ * ground below the horizon, hazed towards the horizon by its distance */
 static void raster_sky(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
 {
     float k = (float)t->k;
     for (int r = y0; r < y1; r++) {
         u32 *row = t->s + (size_t)r * t->w;
-        if (!p->gradient) {
-            for (int c = 0; c < t->w; c++) row[c] = p->value;
-            continue;
-        }
         float yc = (float)r + 0.5f;
         for (int c = 0; c < t->w; c++) {
             float d = (p->hy0 + p->hslope * ((float)c + 0.5f) - yc) / k;   /* rows above the horizon */
+            if (d <= 0.0f) {                                                /* the ground */
+                u32 h = 0;
+                if (p->ground_haze) {
+                    int i = (int)(-d * 32.0f);
+                    h = p->ground_haze[i < ENH_HAZE_ROWS ? i : ENH_HAZE_ROWS - 1];
+                }
+                row[c] = p->ground | ENH_HAZE(h);
+                continue;
+            }
+            if (!p->gradient) {
+                row[c] = p->value;
+                continue;
+            }
             float lv = (22.0f - d) * 0.25f;                                 /* band k centred 22 - 4k rows up */
             if (lv < 0.0f) lv = 0.0f;
             if (lv > 5.0f) lv = 5.0f;

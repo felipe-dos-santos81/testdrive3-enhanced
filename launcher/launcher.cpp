@@ -48,6 +48,14 @@ const MotionPreset MOTION[] = {
     {50, "Balanced: half a frame guessed ahead"},
     {0, "Most direct: a whole frame guessed ahead"},
 };
+// Distance haze: percent of the horizon's sky colour on what is farthest away (presets; the first is the default).
+struct HazePreset { int percent; const char* name; };
+const HazePreset HAZE[] = {
+    {30, "Normal"},
+    {15, "Light"},
+    {50, "Strong"},
+    {0, "Off (as the original)"},
+};
 
 #ifdef __WXMSW__
 HRESULT CALLBACK AboutCallback(HWND hwnd, UINT msg, WPARAM, LPARAM lp, LONG_PTR) {
@@ -219,6 +227,10 @@ LauncherDialog::LauncherDialog()
                         "guesses, so small steering corrections stay smooth); Balanced and Most direct guess half "
                         "or a whole frame ahead, which answers sooner but overshoots when the steering changes.");
     for (const auto& m : MOTION) motion_->Append(m.name);
+    haze_ = ChoiceRow(vb, viewGrid, "Ha&ze:",
+                      "What is far away takes on some of the sky's colour at the horizon, the ground too: the "
+                      "distance reads better and the scenery appearing at the edge of the view stands out less.");
+    for (const auto& h : HAZE) haze_->Append(h.name);
     viewBox->Add(viewGrid, 0, wxALL, gap);
     graphics_->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) { UpdateState(); });
 
@@ -300,6 +312,10 @@ LauncherDialog::LauncherDialog()
     motion_->SetSelection(0);
     for (size_t i = 0; i < sizeof MOTION / sizeof MOTION[0]; ++i)
         if (MOTION[i].delay == delay) motion_->SetSelection(static_cast<int>(i));
+    const int haze = settings::GetInt(SECTION, "Haze", HAZE[0].percent);
+    haze_->SetSelection(0);
+    for (size_t i = 0; i < sizeof HAZE / sizeof HAZE[0]; ++i)
+        if (HAZE[i].percent == haze) haze_->SetSelection(static_cast<int>(i));
     loading_ = false;
     Reload();
 
@@ -348,6 +364,7 @@ void LauncherDialog::UpdateState() {
     const bool enhanced = graphics_->GetSelection() == 0;
     aa_->Enable(enhanced);
     motion_->Enable(enhanced);
+    haze_->Enable(enhanced);
     car_->Enable(!catalogue_.cars.empty());
     course_->Enable(!catalogue_.courses.empty());
     play_->Enable(ok);
@@ -388,6 +405,7 @@ void LauncherDialog::Play() {
     options.resScale = resolution_->GetSelection() + MIN_RES;
     options.aa = aa_->GetSelection() + 1;
     options.motionDelay = MOTION[wxMax(0, motion_->GetSelection())].delay;
+    options.haze = HAZE[wxMax(0, haze_->GetSelection())].percent;
     wxString error;
     if (!LaunchGame(options, error)) wxMessageBox(error, APP_TITLE, wxOK | wxICON_ERROR, this);
 }
@@ -410,6 +428,7 @@ void LauncherDialog::Save() {
     settings::SetInt(SECTION, "Resolution", resolution_->GetSelection() + MIN_RES);
     settings::SetInt(SECTION, "AntiAliasing", aa_->GetSelection() + 1);
     settings::SetInt(SECTION, "Motion", MOTION[wxMax(0, motion_->GetSelection())].delay);
+    settings::SetInt(SECTION, "Haze", HAZE[wxMax(0, haze_->GetSelection())].percent);
     settings::SaveWindowPosition(SECTION, this);
 }
 

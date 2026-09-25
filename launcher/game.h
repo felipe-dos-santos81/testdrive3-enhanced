@@ -52,6 +52,7 @@ struct GameOptions {
     int resScale = 4;       // --res-scale: the picture is 320x200 times this
     int aa = 2;             // --aa: anti-aliasing, aa x aa samples a pixel (1 = off)
     int motionDelay = 50;   // --motion-delay: percent of a game frame the smooth view runs behind
+    int haze = 30;          // --haze: distance haze, percent of the horizon's sky colour (0 = off)
 };
 
 // Starts the game. On failure returns false and says why in `error`.
