@@ -7,6 +7,8 @@
  * read and written in mem[] exactly where the original does, because other routines see them. */
 #include "game/game.h"
 
+#include <math.h>
+
 /* Object array element at slot bx (byte offset 2*i). */
 #define OW(arr, bx) DSW((u16)((arr) + (bx)))
 #define OB(arr, bx) DSB((u16)((arr) + (bx)))
@@ -732,6 +734,16 @@ void crossing_gate_update(void)
     if (DSW(DS_gate_slot2) != 0xFFFF) crossing_gate_arm_place(DSW(DS_gate_slot2));
 }
 
+/* ENH: the police car in slot bx is ahead of the player (in front of the line across the car). Positions wrap
+ * at 8000h (x) and 4000h (z); the view heading's forward direction is (sin, cos) in (x, z). */
+static bool police_ahead(u16 bx)
+{
+    double dx = (s16)(u16)((u16)(OW(DS_obj_x, bx) - DSW(DS_obj_x)) << 1) >> 1;
+    double dz = (s16)(u16)((u16)(OW(DS_obj_z, bx) - DSW(DS_obj_z)) << 2) >> 2;
+    double h = DSW(DS_view_heading) * (2.0 * M_PI / 65536.0);
+    return dx * sin(h) + dz * cos(h) > 0;
+}
+
 /* 0e12:5ffe police_update — simulation.md §4.13, render3d.md §4.14 */
 void police_update(void)
 {
@@ -789,6 +801,13 @@ void police_update(void)
                 int close = 1;
                 if (!(dx & 0x4000)) {
                     if (DSB(DS_speedo_step) < 0x0C) close = 0;  /* car speed < 48 */
+                    /* ENH: the original starts a chase for any police car this near, also one driving ahead
+                     * the same way, which then races off in front of the player. Such a car only gives chase
+                     * once the player has overtaken it; oncoming and parked ones as before. */
+                    else if ((OW(DS_obj_waypoint, bx) & 0xFFC0)
+                             && (s8)(u8)((u8)((u16)(OW(DS_obj_heading, bx) - DSW(DS_obj_heading)) >> 8) - 0x40) < 0
+                             && police_ahead(bx))
+                        close = 0;
                     else {
                         OW(DS_obj_flags, bx) = (u16)(dx | 0x40C0);   /* chase at speed class 3 */
                         DSB(DS_clocked_speed) = DSB(DS_speedo_step);

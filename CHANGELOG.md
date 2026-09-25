@@ -48,6 +48,9 @@
     eased from a head start, stops at the centre as before and carries on past it without easing in again;
     both keys and the mouse are not affected. The original's doubled turn at full lock grows over the
     outer band of the wheel instead, to 1.5 times (`ENH:` in `sim_physics.c`).
+- Police: a police car driving ahead in the same direction started a chase as soon as the player came near at
+  48 or more, while still behind it (the original checks only the distance). It now gives chase only once
+  overtaken; oncoming and parked police cars as before (`ENH:` in `police_update`, `sim_traffic.c`).
 - Distance haze (`--haze`, default 30 %; launcher "Haze"), after the distance colouring of Play Stunts' upgraded
   renderer (github.com/ACatWithEbola/playstunts): faces, trees and the ground take on some of the horizon's sky
   colour with distance, through the current palette (day, night, weather and fades follow), which also softens

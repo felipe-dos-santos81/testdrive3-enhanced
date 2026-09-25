@@ -242,6 +242,15 @@ At full lock (wheel 0 or 20h) the original doubles the turn (`sim_physics.c`, st
 gets there. `ENH:` the extra grows over the outer band instead, from none at 12 steps off the centre to 1.5
 times at full lock (16).
 
+## Police
+
+`police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
+(depth key) of the camera while the car does 48 or more, in any direction: also one driving ahead the same
+way, which then speeds off in front of the player at chase speed. `ENH:` a moving police car going the same
+way (heading within 90° of the player's) that is ahead of the player (in front of the line across the car,
+`police_ahead`) does not start a chase; once the player has overtaken it, it does. Oncoming police cars
+(which turn round) and parked ones (a speed trap) as before, and so do the radar detector and the pull-over.
+
 ## Composition
 
 `platform/vga.c` scales the 320 × 200 VGA picture by `--res-scale` and calls `enh_compose`, which lays the
