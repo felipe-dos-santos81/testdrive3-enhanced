@@ -2,7 +2,7 @@
  *
  * usage: testdrive3-enhanced [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]
  *                [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]
- *                [--haze P] [--classic] [--check]
+ *                [--haze P] [--finish-marker 0|1] [--classic] [--check]
  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
  *   --scale       initial window scale: 320x240 times N (default 3)
  *   --fullscreen  start in full screen (Alt+Enter switches)
@@ -18,6 +18,7 @@
  *                 0 = no delay, extrapolated; 100 = a whole frame, interpolated only)
  *   --haze        ENH: distance haze, percent of the horizon's sky colour on what is farthest (default 30,
  *                 0 = off)
+ *   --finish-marker ENH: the direction of the leg's finish (the gas station) on the compass (default 1; 0 = off)
  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
  *   --check       load and verify the original executable, print a summary and exit (no window)
  */
@@ -40,7 +41,7 @@ static int usage(const char *prog)
     fprintf(stderr,
             "usage: %s [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]\n"
             "          [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]\n"
-            "          [--haze P] [--classic] [--check]\n", prog);
+            "          [--haze P] [--finish-marker 0|1] [--classic] [--check]\n", prog);
     return 2;
 }
 
@@ -70,6 +71,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--aa") && v) { aa = atoi(v); i++; }
         else if (!strcmp(a, "--motion-delay") && v) { motion_delay = atoi(v); i++; }
         else if (!strcmp(a, "--haze") && v) { haze = atoi(v); i++; }
+        else if (!strcmp(a, "--finish-marker") && v) { portcfg.finish_marker = atoi(v) != 0; i++; }
         else if (!strcmp(a, "--classic")) classic = true;
         else if (!strcmp(a, "--check")) check = true;
         else return usage(argv[0]);

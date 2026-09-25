@@ -100,6 +100,7 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                "--frame-ticks", wxString::Format("%d", o.frameTicks),
                                "--sound", o.speaker ? "speaker" : "adlib"};
     if (o.fullscreen) args.push_back("--fullscreen");
+    args.insert(args.end(), {"--finish-marker", o.finishMarker ? "1" : "0"});
     args.insert(args.end(), {"--res-scale", wxString::Format("%d", o.resScale)});
     if (o.classic) args.push_back("--classic");
     else args.insert(args.end(), {"--aa", wxString::Format("%d", o.aa),

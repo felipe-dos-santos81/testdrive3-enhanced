@@ -55,7 +55,8 @@ Keep the folder somewhere you can save files, not Program Files: the game saves 
 
 * **Game files**: the game folder and `testdrive3-enhanced.exe` (by default both beside the launcher).
 * **Start**: the car, course and skill level the game starts with, as if chosen in its own menus.
-* **Options**: game speed (timer ticks per frame while driving, default 14), sound, window size, full screen.
+* **Options**: game speed (timer ticks per frame while driving, default 14), sound, window size, full screen,
+  the finish's direction on the compass.
 * **Picture**: enhanced or original graphics, the resolution, anti-aliasing and the motion setting.
 
 Settings are remembered in `%APPDATA%\Test Drive III Enhanced\settings.ini`.
@@ -94,6 +95,7 @@ launcher's wxWidgets DLLs next to them. The MSYS2 `SDL3.dll` also needs `libicon
 | `--game-dir DIR` | Folder with the original game files (default `Game`) |
 | `--scale N` | Initial window size as a multiple of 320×240 (default 3) |
 | `--fullscreen` | Start in full screen |
+| `--finish-marker 0\|1` | A green mark on the compass pointing to the leg's finish, the gas station (default 1) |
 | `--res-scale N` | Picture resolution: 320×200 times N (default 4 = 1280×800, 1–8) |
 | `--aa N` | Anti-aliasing: N×N samples per pixel (default 2, 1 = off; resolution × N is kept ≤ 16) |
 | `--motion-delay P` | How far the smooth view runs behind the game, in percent of a game frame (default 100: moves between the game's frames, never guesses ahead; 50 or 0 guess half or a whole frame ahead, answering sooner but overshooting when the steering changes) |

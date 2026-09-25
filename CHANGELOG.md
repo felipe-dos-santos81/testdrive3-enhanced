@@ -48,6 +48,8 @@
     eased from a head start, stops at the centre as before and carries on past it without easing in again;
     both keys and the mouse are not affected. The original's doubled turn at full lock grows over the
     outer band of the wheel instead, to 1.5 times (`ENH:` in `sim_physics.c`).
+- Finish marker on the compass (`--finish-marker`, default on; launcher option): a green mark in the compass
+  window points to the leg's gas station, an arrow at its edge when the finish lies further to the side.
 - Police: a police car driving ahead in the same direction started a chase as soon as the player came near at
   48 or more, while still behind it (the original checks only the distance). It now gives chase only once
   overtaken; oncoming and parked police cars as before (`ENH:` in `police_update`, `sim_traffic.c`).

@@ -43,6 +43,7 @@ private:
     wxChoice* sound_ = nullptr;
     wxChoice* scale_ = nullptr;
     wxCheckBox* fullscreen_ = nullptr;
+    wxCheckBox* finishMarker_ = nullptr;
     wxChoice* graphics_ = nullptr;    // enhanced / original
     wxChoice* resolution_ = nullptr;  // 1..8 times 320x200
     wxChoice* aa_ = nullptr;          // off, 2x2, 3x3, 4x4

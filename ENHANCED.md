@@ -242,6 +242,16 @@ At full lock (wheel 0 or 20h) the original doubles the turn (`sim_physics.c`, st
 gets there. `ENH:` the extra grows over the outer band instead, from none at 12 steps off the centre to 1.5
 times at full lock (16).
 
+## Finish marker
+
+`ENH:` `compass_draw` (`hud_topbar.c`) also marks the direction of the leg's finish (`--finish-marker`, default
+on): the finish is the one cell whose tile has a face of type 1Fh (the gas station; found by scanning the leg
+map's tile models, remembered while that cell still holds it), its centre's bearing from the car relative to the
+heading at the compass's 128 px a turn. Inside the window (x 8..31) a light green triangle at the bottom, under
+the letter of that direction; outside it an arrow at the window's left or right edge. The window is redrawn
+when the mark moves. The compass letters are the game's per leg (`leg_compass_offset`: they read N while
+leg A of SCENE01 heads east); the mark follows the map.
+
 ## Police
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h

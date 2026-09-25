@@ -25,6 +25,8 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
   * **Sound** (`--sound`): AdLib / Sound Blaster (through Nuked-OPL3) or the PC speaker. `TD3.CFG` is not
     changed.
   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
+  * **Finish direction on the compass** (`--finish-marker`, on by default): a green mark on the compass points
+    to the leg's gas station. Stored as `FinishMarker` in `settings.ini`.
 * **Picture** (the enhanced view, `../ENHANCED.md`):
   * **Graphics**: *Enhanced* (the 3D view and the mirror drawn again, smooth and at a high resolution) or
     *Original* (`--classic`: the game's own 320 x 200 picture, scaled).

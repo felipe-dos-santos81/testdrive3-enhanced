@@ -201,6 +201,10 @@ LauncherDialog::LauncherDialog()
     optionsBox->Add(grid, 0, wxLEFT | wxRIGHT | wxTOP, gap);
     fullscreen_ = new wxCheckBox(ob, wxID_ANY, "Start in f&ull screen (Alt+Enter switches)");
     optionsBox->Add(fullscreen_, 0, wxALL, gap);
+    finishMarker_ = new wxCheckBox(ob, wxID_ANY, "Finis&h direction on the compass");
+    finishMarker_->SetToolTip("A green mark on the compass points to the gas station at the end of the leg "
+                              "(an arrow at the compass's edge when it lies further to the side).");
+    optionsBox->Add(finishMarker_, 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
 
     // Enhanced view
     auto* viewBox = new wxStaticBoxSizer(wxVERTICAL, this, "Picture");
@@ -304,6 +308,7 @@ LauncherDialog::LauncherDialog()
     scale_->SetSelection(
         wxMax(MIN_SCALE, wxMin(MAX_SCALE, settings::GetInt(SECTION, "Scale", DEFAULT_SCALE))) - MIN_SCALE);
     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
+    finishMarker_->SetValue(settings::GetInt(SECTION, "FinishMarker", 1) != 0);
     graphics_->SetSelection(settings::GetInt(SECTION, "Classic", 0) != 0 ? 1 : 0);
     resolution_->SetSelection(
         wxMax(MIN_RES, wxMin(MAX_RES, settings::GetInt(SECTION, "Resolution", DEFAULT_RES))) - MIN_RES);
@@ -401,6 +406,7 @@ void LauncherDialog::Play() {
     options.speaker = sound_->GetSelection() == 1;
     options.scale = scale_->GetSelection() + MIN_SCALE;
     options.fullscreen = fullscreen_->GetValue();
+    options.finishMarker = finishMarker_->GetValue();
     options.classic = graphics_->GetSelection() == 1;
     options.resScale = resolution_->GetSelection() + MIN_RES;
     options.aa = aa_->GetSelection() + 1;
@@ -424,6 +430,7 @@ void LauncherDialog::Save() {
     settings::SetInt(SECTION, "Speaker", sound_->GetSelection() == 1 ? 1 : 0);
     settings::SetInt(SECTION, "Scale", scale_->GetSelection() + MIN_SCALE);
     settings::SetInt(SECTION, "Fullscreen", fullscreen_->GetValue() ? 1 : 0);
+    settings::SetInt(SECTION, "FinishMarker", finishMarker_->GetValue() ? 1 : 0);
     settings::SetInt(SECTION, "Classic", graphics_->GetSelection() == 1 ? 1 : 0);
     settings::SetInt(SECTION, "Resolution", resolution_->GetSelection() + MIN_RES);
     settings::SetInt(SECTION, "AntiAliasing", aa_->GetSelection() + 1);

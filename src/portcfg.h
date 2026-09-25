@@ -9,6 +9,7 @@ typedef struct {
     char course[10];    /* --course CODE: a scene slot's base name, e.g. "SCENE02"; "" = PLAYDISK.DAT's */
     int skill;          /* --skill 1..9 as shown in the game (1-3 automatic gearbox); 0 = PLAYDISK.DAT's */
     int sound;          /* --sound adlib|speaker -> TD3.CFG audio 4 / 0; -1 = TD3.CFG's */
+    bool finish_marker; /* ENH --finish-marker 0|1: the finish's direction on the compass (default on) */
 } PortConfig;
 
 extern PortConfig portcfg;
