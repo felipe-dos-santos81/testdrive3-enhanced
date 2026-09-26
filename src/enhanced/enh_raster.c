@@ -3,6 +3,7 @@
  * host's worker threads, every band walking the whole list (painter's algorithm, as the original). */
 #include "enh_internal.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,13 +16,59 @@ void enh_target_reset(EnhTarget *t, int w_px, int h_px, int k)
 {
     int w = w_px * k, h = h_px * k;
     if (w != t->w || h != t->h || !t->s) {
-        free(t->s);
-        t->s = malloc(sizeof(u32) * (size_t)(w > 0 ? w : 1) * (size_t)(h > 0 ? h : 1));
+        size_t n = (size_t)(w > 0 ? w : 1) * (size_t)(h > 0 ? h : 1), wc = (size_t)(w > 0 ? w : 1),
+               hc = (size_t)(h > 0 ? h : 1);
+        free(t->s); free(t->z);
+        free(t->col_sb); free(t->col_cb); free(t->col_se); free(t->col_ce); free(t->row_se); free(t->row_ce);
+        t->s = malloc(sizeof(u32) * n);
+        t->z = malloc(sizeof(float) * n);
+        t->col_sb = malloc(sizeof(float) * wc); t->col_cb = malloc(sizeof(float) * wc);
+        t->col_se = malloc(sizeof(float) * wc); t->col_ce = malloc(sizeof(float) * wc);
+        t->row_se = malloc(sizeof(float) * hc); t->row_ce = malloc(sizeof(float) * hc);
         t->w = w;
         t->h = h;
     }
     t->k = k;
     t->nprim = 0;
+}
+
+/* the lines of sight of the target's columns and rows (the inverse of the projection, EnhMap) */
+static void target_rays(EnhTarget *t)
+{
+    const EnhMap *m = &t->map;
+    const double rad2a = 65536.0 / (2.0 * M_PI), rad2px = 1024.0 / M_PI;
+    for (int c = 0; c < t->w; c++) {
+        double x32 = (c + 0.5) * 32.0 / t->k, sx, e;
+        if (!m->mirror) {
+            sx = x32;
+            e = m->roll_slope * (sx - m->cx32) / rad2px;
+        } else {
+            sx = m->mirror_base + 0x1600 - 2.0 * x32;
+            double d = fmod(sx - 0x9400, 65536.0);
+            if (d >= 32768.0) d -= 65536.0;
+            if (d < -32768.0) d += 65536.0;
+            e = -m->mroll * d / rad2px;
+        }
+        double b = (sx - m->base) / rad2a;
+        t->col_sb[c] = (float)sin(b); t->col_cb[c] = (float)cos(b);
+        t->col_se[c] = (float)sin(e); t->col_ce[c] = (float)cos(e);
+    }
+    for (int r = 0; r < t->h; r++) {
+        double y = (r + 0.5) / t->k;
+        double e = !m->mirror ? (m->cam_row - y) / rad2px : -((y - 10.0) * 2.0 + m->pitch) / rad2px;
+        t->row_se[r] = (float)sin(e); t->row_ce[r] = (float)cos(e);
+    }
+}
+
+/* the distance along the line of sight of sample (c, r) to the plane of p; FLT_MAX when it does not meet it */
+static inline float plane_depth(const EnhTarget *t, const EnhPrim *p, int c, int r)
+{
+    float ce = t->row_ce[r] * t->col_ce[c] - t->row_se[r] * t->col_se[c];
+    float se = t->row_se[r] * t->col_ce[c] + t->row_ce[r] * t->col_se[c];
+    float den = p->nx * t->col_sb[c] * ce + p->ny * se + p->nz * t->col_cb[c] * ce;
+    if (den > -1e-7f && den < 1e-7f) return FLT_MAX;
+    float d = p->d / den;
+    return d > 0 ? d : FLT_MAX;
 }
 
 EnhPrim *enh_prim_add(EnhTarget *t, EnhPrimKind kind)
@@ -37,6 +84,8 @@ EnhPrim *enh_prim_add(EnhTarget *t, EnhPrimKind kind)
     p->kind = kind;
     p->or_mode = false;
     p->n = 0;
+    p->zmode = Z_NONE;
+    p->ztest = false;
     return p;
 }
 
@@ -75,6 +124,13 @@ static void raster_poly(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
         u32 *row = t->s + (size_t)r * t->w;
         if (p->or_mode) for (int c = c0; c < c1; c++) row[c] |= p->value & 0xFFFF;
         else for (int c = c0; c < c1; c++) row[c] = p->value;
+        float *z = t->z + (size_t)r * t->w;
+        switch (p->zmode) {
+        case Z_CLEAR: for (int c = c0; c < c1; c++) z[c] = FLT_MAX; break;
+        case Z_CONST: for (int c = c0; c < c1; c++) z[c] = p->zc; break;
+        case Z_PLANE: for (int c = c0; c < c1; c++) z[c] = plane_depth(t, p, c, r); break;
+        default: break;
+        }
     }
 }
 
@@ -96,13 +152,45 @@ static void raster_sprite(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
         if (j >= img->h) j = img->h - 1;
         const u8 *src = img->pix + (size_t)j * img->w;
         u32 *row = t->s + (size_t)r * t->w;
+        const float *z = t->z + (size_t)r * t->w;
         for (int c = c0; c < c1; c++) {
+            if (p->ztest && !(p->zval < z[c])) continue;              /* behind what is there */
             int i = (int)(((float)c + 0.5f - p->sx0) * fx);
             if (i < 0) i = 0;
             if (i >= img->w) i = img->w - 1;
             u8 v = src[i];
             if (v) row[c] = ENH_SOLID(v) | p->value;
         }
+    }
+}
+
+/* the columns [*c0, *c1) of row r whose sample centres are inside the ellipse inscribed in (x0, y0) - (x1, y1) */
+static bool ellipse_span(float x0, float y0, float x1, float y1, int r, int *c0, int *c1)
+{
+    float cx = (x0 + x1) * 0.5f, cy = (y0 + y1) * 0.5f, rx = (x1 - x0) * 0.5f, ry = (y1 - y0) * 0.5f;
+    if (rx <= 0 || ry <= 0) return false;
+    float dy = ((float)r + 0.5f - cy) / ry;
+    if (dy * dy >= 1.0f) return false;
+    float hw = rx * sqrtf(1.0f - dy * dy);
+    *c0 = (int)ceilf(cx - hw - 0.5f);
+    *c1 = (int)ceilf(cx + hw - 0.5f);
+    return *c0 < *c1;
+}
+
+/* the ellipse inscribed in the rectangle (sx0, sy0) - (sx1, sy1) less the cut one, coverage at sample centres */
+static void raster_ellipse(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
+{
+    int r0 = (int)ceilf(p->sy0 - 0.5f), r1 = (int)ceilf(p->sy1 - 0.5f);
+    if (r0 < y0) r0 = y0;
+    if (r1 > y1) r1 = y1;
+    for (int r = r0; r < r1; r++) {
+        int c0, c1, k0 = 0, k1 = 0;
+        if (!ellipse_span(p->sx0, p->sy0, p->sx1, p->sy1, r, &c0, &c1)) continue;
+        if (p->cut && !ellipse_span(p->kx0, p->ky0, p->kx1, p->ky1, r, &k0, &k1)) k0 = k1 = 0;
+        if (c0 < 0) c0 = 0;
+        if (c1 > t->w) c1 = t->w;
+        u32 *row = t->s + (size_t)r * t->w;
+        for (int c = c0; c < c1; c++) if (c < k0 || c >= k1) row[c] = p->value;
     }
 }
 
@@ -130,7 +218,9 @@ static void raster_sky(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
     float k = (float)t->k;
     for (int r = y0; r < y1; r++) {
         u32 *row = t->s + (size_t)r * t->w;
+        float *z = t->z + (size_t)r * t->w;
         float yc = (float)r + 0.5f;
+        for (int c = 0; c < t->w; c++) z[c] = FLT_MAX;                  /* nothing there yet */
         for (int c = 0; c < t->w; c++) {
             float d = (p->hy0 + p->hslope * ((float)c + 0.5f) - yc) / k;   /* rows above the horizon */
             if (d <= 0.0f) {                                                /* the ground */
@@ -174,6 +264,7 @@ static void raster_band(int b, void *vctx)
         case P_SPRITE: raster_sprite(t, p, y0, y1); break;
         case P_BLOCKS: raster_blocks(t, p, rc->snap, y0, y1); break;
         case P_SKY:    raster_sky(t, p, y0, y1); break;
+        case P_ELLIPSE: raster_ellipse(t, p, y0, y1); break;
         }
     }
 }
@@ -181,6 +272,7 @@ static void raster_band(int b, void *vctx)
 void enh_target_raster(EnhTarget *t, const EnhSnap *snap)
 {
     if (!t->s || t->h <= 0) return;
+    target_rays(t);
     RasterCtx rc = { t, snap, 16 };
     host_parallel_for((t->h + rc.band - 1) / rc.band, raster_band, &rc);
 }

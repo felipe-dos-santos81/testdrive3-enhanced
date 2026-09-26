@@ -494,46 +494,21 @@ static u8 mouse_controls(u8 cl)
     return cl;
 }
 
-/* ENH: keyboard steering, eased. The original adds 1, 2, then 3 per control read (three reads a frame), 1 more
- * far from the centre when turning back: full lock after two frames, at any speed. Here the wheel moves by
- * fractions that grow with the time held (STEER_EASE_*, per read at the default 14 ticks a frame, scaled by the
- * frame's length), slower at speed; full lock after about 0.4 s standing, 0.6 s at 150 mph. A counter-turn (the
- * key turning the wheel back from the other side) starts with a head start of STEER_EASE_COUNTER reads, stops at
- * the centre as the original does, and carries its pace on past it instead of easing in again. */
-#define STEER_EASE_START 0.7                          /* wheel units per read, before the first step */
-#define STEER_EASE_GROW  0.15                         /* added per read held */
-#define STEER_EASE_MAX   3.0                          /* the original's largest step */
-#define STEER_EASE_FAST  0.4                          /* fraction taken off at STEER_EASE_MPH and above */
-#define STEER_EASE_MPH   150.0
-#define STEER_EASE_COUNTER 5                          /* counter-turn head start: 1.6 a read, standing */
+/* ENH: the original's keyboard steering, paced by the frame's length. It moves the wheel (0..20h, centre 10h) by
+ * 1, 2, then 3 per control read (the hold count), 1 more far out when turning back, three reads a frame: made
+ * for the faithful port's 23 ticks a frame, it swings the wheel 23/14 times as fast in real time at the default
+ * 14. Each read's step and the growth of the hold count are scaled by the last frame's ticks / STEER_TICKS, the
+ * wheel keeping its fraction between reads; at 23 ticks every read is the original's. */
+#define STEER_TICKS 23.0
 
-static double ease_pos;                               /* the wheel with its fraction */
-static int ease_reads;                                /* reads held since the key went down */
-static int ease_dir;                                  /* +1 right, -1 left: the key of the last eased read */
-static bool ease_counter;                             /* the last read was a counter-turn (in ease_dir) */
-
-/* start: the reads to begin from (a new press or a new direction), -1 to carry on */
-static u8 steer_ease(u8 al, int dir, int start)
-{
-    if (start >= 0) ease_reads = start;
-    if (start >= 0 || ease_pos < al - 0.5 || ease_pos > al + 0.5) ease_pos = al;   /* moved by anything else */
-    ease_dir = dir;
-    ease_reads++;
-    double inc = STEER_EASE_START + STEER_EASE_GROW * ease_reads;
-    if (inc > STEER_EASE_MAX) inc = STEER_EASE_MAX;
-    double ticks = DSB(DS_frame_ticks) < 7 ? 7 : DSB(DS_frame_ticks) > 42 ? 42 : DSB(DS_frame_ticks);
-    double mph = DSS(DS_car_speed) < 0 ? -DSS(DS_car_speed) : DSS(DS_car_speed);
-    inc *= ticks / 14.0 * (1.0 - STEER_EASE_FAST * (mph > STEER_EASE_MPH ? 1.0 : mph / STEER_EASE_MPH));
-    ease_pos += dir * inc;
-    if (ease_pos < 0) ease_pos = 0;
-    if (ease_pos > 0x20) ease_pos = 0x20;
-    return (u8)(ease_pos + 0.5);
-}
+static double wheel_f;                                /* the wheel with its fraction */
+static double hold_f;                                 /* the hold count with its fraction (0..2) */
+static u8 hold_stored;                                /* the whole count last stored in DS_steer_hold */
 
 /* 0e12:09d6 steer_throttle — simulation.md §4.4 (CL = bits) */
 static void steer_throttle(u8 cl)
 {
-    u8 al, bl;
+    u8 al, ah, bl;
     if (cl & 3) {
         if (cl & 1) {
             if (DSB(DS_throttle) < 0x1E) {
@@ -549,33 +524,42 @@ static void steer_throttle(u8 cl)
         }
     }
     al = DSB(DS_steer_wheel);
+    ah = al;
     if (!(cl & 0x0C)) {
-        ease_counter = false;                                    /* ENH */
-        DSB(DS_steer_hold) = 0;
+        DSB(DS_steer_hold) = hold_stored = 0;
+        hold_f = 0;                                                   /* ENH */
         if (DSW(DS_joystick_on) != 0 && DSB(DS_joy_analog) != 0 && DSB(DS_mouse_on) == 0)
             DSB(DS_steer_wheel) = 0x10;
         return;
     }
-    bl = (u8)(DSB(DS_steer_hold) + 1);
-    if (bl < 3) DSB(DS_steer_hold) = bl;
+    /* ENH: the frame's share of the faithful port's; bl, the hold count + 1, grows by that share a read */
+    double k = DSB(DS_frame_ticks) / STEER_TICKS;
+    if (k < 5 / STEER_TICKS) k = 5 / STEER_TICKS;
+    if (k > 2.0) k = 2.0;
+    if (DSB(DS_steer_hold) != hold_stored) hold_f = DSB(DS_steer_hold);   /* set elsewhere (replay, mouse) */
+    bl = (u8)(1 + (int)hold_f);
+    hold_f += k;
+    if (hold_f > 2) hold_f = 2;
+    DSB(DS_steer_hold) = hold_stored = (u8)hold_f;
+    double w = wheel_f > al - 1.0 && wheel_f < al + 1.0 ? wheel_f : al;   /* moved by anything else: its value */
     cl &= 0x0C;
     if (cl == 0x0C) {                                         /* both: towards the centre */
-        if (al != 0x10) {
-            if (al < 0x10) { al = (u8)(al + bl); if (al > 0x10) al = 0x10; }
-            else           { al = (u8)(al - bl); if (al < 0x10) al = 0x10; }
+        if (w < 0x10) { w += bl * k; if (w > 0x10) w = 0x10; }
+        else if (w > 0x10) { w -= bl * k; if (w < 0x10) w = 0x10; }
+    } else {
+        if (cl & 8) {
+            w += (bl + (w < 0x0A ? 1 : 0)) * k;
+            if (w > 0x20) w = 0x20;
+            if (w >= 0x10 && ah < 0x10) { DSB(DS_steer_hold) = hold_stored = 0; hold_f = 0; w = 0x10; }
         }
-    } else {                                                  /* ENH: one key, eased (see steer_ease) */
-        int dir = (cl & 8) ? 1 : -1;
-        bool fresh = bl == 1 || dir != ease_dir;
-        if ((cl & 8) ? al >= 0x10 : al <= 0x10) {             /* away from the centre */
-            al = steer_ease(al, dir, ease_counter && dir == ease_dir ? -1 : fresh ? 0 : -1);
-            ease_counter = false;
-        } else {                                              /* a counter-turn: back to the centre, stop there */
-            al = steer_ease(al, dir, fresh || !ease_counter ? STEER_EASE_COUNTER : -1);
-            if (dir > 0 ? al >= 0x10 : al <= 0x10) { DSB(DS_steer_hold) = 0; al = 0x10; }
-            ease_counter = true;
+        if (cl & 4) {
+            w -= (bl + (w > 0x16 ? 1 : 0)) * k;
+            if (w < 0) w = 0;
+            if (w <= 0x10 && ah > 0x10) { DSB(DS_steer_hold) = hold_stored = 0; hold_f = 0; w = 0x10; }
         }
     }
+    wheel_f = w;
+    al = (u8)(w + 0.5);
     DSB(DS_steer_wheel) = al;
     if (DSW(DS_joystick_on) == 0 || DSB(DS_joy_analog) == 0) return;
     {                                                         /* analog stick overrides */

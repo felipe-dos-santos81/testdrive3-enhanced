@@ -42,12 +42,19 @@
   - After returning from the chase view, the player's car kept the vertex range of its last chase-view frame
     (the game does not emit it in the cockpit view); another car's vertices there were carried with the
     player's motion. The player's car is no longer treated as a moving vehicle in the cockpit view.
-  - Keyboard steering eased in (`ENH:` in `steer_throttle`): the wheel went from the centre to full lock in two
-    frames at any speed. Away from the centre it now starts with small steps that grow with the time held, in
-    real time and slower at speed (full lock after about 0.4 s standing, 0.6 s at 150 mph); a counter-turn is
-    eased from a head start, stops at the centre as before and carries on past it without easing in again;
-    both keys and the mouse are not affected. The original's doubled turn at full lock grows over the
-    outer band of the wheel instead, to 1.5 times (`ENH:` in `sim_physics.c`).
+  - Keyboard steering paced by the frame's length (`ENH:` in `steer_throttle`): the original's steering, whose
+    steps are per control read, swung the wheel 23/14 times as fast at the faster default game speed. Its steps
+    are now scaled by the frame's ticks / 23, the faithful port's pace in seconds at any game speed (full lock
+    in about 0.3 s); otherwise the original's. (An eased steering with a softened full lock tried before this
+    is dropped.)
+- Flickering road markings and trees: the markings are small sprites lying on the road, and they and trees at
+  the foot of slopes were drawn over by the face they are on, on and off as the camera moved (sprites were
+  placed among the faces by depth keys that are not in order along the game's face order at the smooth
+  camera). The sprites are now drawn after all faces with a per-sample depth test: every face leaves its exact
+  distance along each sample's line of sight, and a sprite shows only where it is nearer (with 64 units of
+  allowance for what stands or lies on a surface), so trees are hidden exactly where cars, slopes or scenery
+  in front of them cover them, also in part.
+- The sun is a smooth round disc and the moon a smooth crescent instead of blocky scaled-up images.
 - Finish marker on the compass (`--finish-marker`, default on; launcher option): a green mark in the compass
   window points to the leg's gas station, an arrow at its edge when the finish lies further to the side.
 - Police: a police car driving ahead in the same direction started a chase as soon as the player came near at

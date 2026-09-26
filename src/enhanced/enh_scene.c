@@ -104,6 +104,10 @@ u32 enh_haze_colour(const EnhSnap *s)
 
 static EnhTarget *T;                             /* the target being filled */
 
+/* what the polygons being added leave in the depth buffer (EnhPrim zmode): set per face by draw_face */
+static u8 z_mode = Z_NONE;
+static float z_plane[4], z_const;
+
 static void poly(int n, const double *x32, const double *y, u32 value, bool or_mode)
 {
     EnhPrim *p = enh_prim_add(T, P_POLY);
@@ -111,6 +115,9 @@ static void poly(int n, const double *x32, const double *y, u32 value, bool or_m
     p->n = n;
     p->value = value;
     p->or_mode = or_mode;
+    p->zmode = or_mode ? Z_NONE : z_mode;
+    p->nx = z_plane[0]; p->ny = z_plane[1]; p->nz = z_plane[2]; p->d = z_plane[3];
+    p->zc = z_const;
     for (int i = 0; i < n; i++) {
         p->x[i] = (float)(x32[i] / 32.0 * K);
         p->y[i] = (float)(y[i] * K);
@@ -408,6 +415,38 @@ static void draw_face(int f)
         for (int k = 0; k < m; k++) if (vs[k] < S->nv) { d += depth(vs[k]); used++; }
         face_value |= ENH_HAZE(haze_amount(d / used));
     }
+    /* ENH: its depth for the sprites: polygons their plane, lamps and lines the distance of their nearest end */
+    {
+        int vs[4] = { v0, v1, v2, v3 }, m = n + 1;
+        double p[4][3];
+        bool ok = true;
+        for (int k = 0; k < m; k++) {
+            if (vs[k] >= S->nv) { ok = false; break; }
+            p[k][0] = wraps(V->vx[vs[k]] - V->cam_x4);
+            p[k][1] = V->vy[vs[k]] - V->cam_y;
+            p[k][2] = wraps(V->vz[vs[k]] - V->cam_z4);
+        }
+        z_mode = Z_NONE;
+        if (ok && m >= 3) {
+            double ux = p[1][0] - p[0][0], uy = p[1][1] - p[0][1], uz = p[1][2] - p[0][2];
+            double wx = p[2][0] - p[0][0], wy = p[2][1] - p[0][1], wz = p[2][2] - p[0][2];
+            double nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+            double len = sqrt(nx * nx + ny * ny + nz * nz);
+            if (len > 1e-9) {
+                nx /= len; ny /= len; nz /= len;
+                z_plane[0] = (float)nx; z_plane[1] = (float)ny; z_plane[2] = (float)nz;
+                z_plane[3] = (float)(nx * p[0][0] + ny * p[0][1] + nz * p[0][2]);
+                z_mode = Z_PLANE;
+            }
+        }
+        if (ok && z_mode == Z_NONE) {
+            double dmin = 1e30;
+            for (int k = 0; k < m; k++)
+                dmin = fmin(dmin, sqrt(p[k][0] * p[k][0] + p[k][1] * p[k][1] + p[k][2] * p[k][2]));
+            z_const = (float)dmin;
+            z_mode = Z_CONST;
+        }
+    }
     switch (w0 >> 14) {
     case 0: draw_point(v0, w0); break;
     case 1: draw_line(v1, v0, w0); break;                     /* line_draw(bx = v1, si = v0) */
@@ -462,6 +501,15 @@ static int cmp_spr(const void *a, const void *b)
     return p->k - q->k;
 }
 
+#define SPR_ON_FACE 64.0                         /* depth allowance for sprites standing on a surface, world units */
+
+/* the sun and the moon (instance 8, sprites 5 / 4): behind everything */
+static bool sky_sprite(const SprItem *it)
+{
+    const EnhSpr *e = &S->spr[it->k];
+    return e->inst == 8 && ((e->id & 0x3F) == 4 || (e->id & 0x3F) == 5);
+}
+
 static void draw_sprite(const SprItem *it)
 {
     const EnhSpr *e = &S->spr[it->k];
@@ -508,6 +556,31 @@ static void draw_sprite(const SprItem *it)
     p->img = img;
     /* ENH: haze by the depth key; not what stands above the eye (the sun, the moon, clouds, birds) */
     p->value = V->spr_y[it->k] < V->cam_y ? ENH_HAZE(haze_amount(key)) : 0;
+    /* ENH: shown only where it is nearer than the surface there, less SPR_ON_FACE so that what stands or lies on
+     * a surface (trees on slopes, the road markings) is not hidden by it; not the sun and the moon (drawn first) */
+    if (!sky_sprite(it)) {
+        double dy = V->spr_y[it->k] - V->cam_y;
+        p->ztest = true;
+        p->zval = (float)(sqrt(it->dist * it->dist + dy * dy) - SPR_ON_FACE);
+    }
+    /* ENH: the sun and the moon (instance 8, sprites 5 / 4) are a disc and a crescent in 14 x 11 and 8 x 11
+     * images (round with the VGA's tall pixels); scaled up they were blocky blobs. Drawn as smooth shapes in the
+     * same rectangle: the sun the inscribed ellipse; the moon a circle 11 image pixels across at the image's
+     * left edge less one 10 x 11 centred 10 pixels right of it (fitted to the image: 4 of 88 pixels differ). */
+    if (e->inst == 8 && (s == 5 || s == 4) && img->w == (s == 5 ? 14 : 8) && img->h == 11) {
+        u8 c = 0;
+        for (int i = 0; i < img->w * img->h && !c; i++) c = img->pix[i];
+        p->kind = P_ELLIPSE;
+        p->value = ENH_SOLID(c);
+        p->cut = false;
+        if (s == 4) {
+            float fx = (p->sx1 - p->sx0) / 8.0f, fy = (p->sy1 - p->sy0) / 11.0f, x0 = p->sx0;
+            p->sx1 = x0 + 11 * fx;
+            p->cut = true;
+            p->kx0 = x0 + 5 * fx;  p->kx1 = x0 + 15 * fx;
+            p->ky0 = p->sy0;       p->ky1 = p->sy0 + 11 * fy;
+        }
+    }
 }
 
 /* ------------------------------------------------------------------------------------------------------
@@ -537,6 +610,7 @@ static void sky_ground(void)
     double ml = a * 0.5, mr = (a + 2 * d) * 0.5;
     double sxs[4] = { 0, 0x0B00, 0x0B00, 0 };
     double sky[4] = { -4, -4, mr, ml }, gnd[4] = { ml, mr, 23, 23 };
+    z_mode = Z_CLEAR;                                        /* nothing there yet */
     poly(4, sxs, sky, ENH_PAIR(S->sky_pair), false);
     poly(4, sxs, gnd, ENH_PAIR(S->ground_pair), false);
 }
@@ -572,6 +646,13 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     enh_target_reset(&enh_front, (int)(W32 / 32), s->rows, K);
     enh_target_reset(&enh_mirror, 88, 19, K);
 
+    /* how the samples map back to lines of sight, for the depth (enh_raster.c) */
+    EnhMap m = { false, (double)(s->cx_hi << 8) - v->heading, v->cam_row, v->roll_slope, CX32,
+                 s->mirror_base, v->pitch, v->mroll_slope };
+    enh_front.map = m;
+    m.mirror = true;
+    enh_mirror.map = m;
+
     project();
     haze_setup();
     sky_ground();
@@ -598,13 +679,12 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     int first = (!s->ext_view && ns > 0 && sprs[0].k == 0) ? 1 : 0;
     qsort(sprs + first, (size_t)(ns - first), sizeof sprs[0], cmp_spr);
 
-    int fi = 0, k = 0;
-    while (k < ns || fi < s->nf) {
-        if (k < ns && (fi >= s->nf || sprs[k].key > fkey[forder[fi]])) {
-            draw_sprite(&sprs[k++]);
-            continue;
-        }
-        draw_face(forder[fi++]);
-    }
+    /* ENH: instead of 323e's merge of the sprites into the faces by depth key: the sun and the moon first, then
+     * all the faces (which leave their depth in the targets), then the other sprites farthest first, each shown
+     * only where it is nearer than the surface already there (ENHANCED.md "Sprites") */
+    for (int k = 0; k < ns; k++) if (sky_sprite(&sprs[k])) draw_sprite(&sprs[k]);
+    for (int fi = 0; fi < s->nf; fi++) draw_face(forder[fi]);
+    for (int k = 0; k < ns; k++) if (!sky_sprite(&sprs[k])) draw_sprite(&sprs[k]);
+    z_mode = Z_NONE;                                         /* the cockpit overlays */
     overlays();
 }

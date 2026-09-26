@@ -351,16 +351,7 @@ void car_physics(void)
         m = (s16)ldiv32(lmul(lmul(x, t), 0x50), (s16)(0x2B8 * CAR(0x1224)));
         m = (s16)ldiv32(lmul((s16)((s16)(3 * DSC(DS_steering_response)) + 0x10), m), 0x24);
         if (DSW(DS_car_speed) < 0x0C) m = (s16)ldiv32(lmul(m, DSW(DS_car_speed)), 0x0C);
-        /* ENH: the original doubles the turn at full lock (wheel 0 or 20h), a jolt as the wheel reaches it. The
-         * extra now grows over the outer band instead, from none at STEER_BAND_FROM steps off the centre to
-         * STEER_LOCK_GAIN at full lock (16). */
-        {
-            enum { STEER_BAND_FROM = 12 };
-            const double STEER_LOCK_GAIN = 1.5;
-            int off = DSB(DS_steer_wheel) < 0x10 ? 0x10 - DSB(DS_steer_wheel) : DSB(DS_steer_wheel) - 0x10;
-            if (off > STEER_BAND_FROM)
-                m = (s16)(m * (1.0 + (STEER_LOCK_GAIN - 1.0) * (off - STEER_BAND_FROM) / (16 - STEER_BAND_FROM)));
-        }
+        if (DSB(DS_steer_wheel) == 0x20 || DSB(DS_steer_wheel) == 0) m = (s16)(m << 1);
     }
     if (DSB(DS_on_ground) && DSSL(DS_speed_long) != 0) {
         s16 d, ad, m1, m2;

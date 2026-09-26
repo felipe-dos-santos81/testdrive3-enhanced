@@ -134,15 +134,18 @@ bool enh_sprite_pick(u8 s, double a, const EnhSprImg **img, double *w, double *h
 #define ENH_HAZE(h)          ((u32)(h) << 24)
 #define ENH_HAZE_ROWS        256       /* P_SKY ground haze table: entries, 1/32 view pixel apart below the horizon */
 
-typedef enum { P_POLY, P_SPRITE, P_BLOCKS, P_SKY } EnhPrimKind;
+typedef enum { P_POLY, P_SPRITE, P_BLOCKS, P_SKY, P_ELLIPSE } EnhPrimKind;
 typedef struct {
     EnhPrimKind kind;
     u32 value;                         /* sample value (P_POLY, P_SKY's sky; P_SPRITE: the haze bits only) */
     bool or_mode;                      /* OR 08h into both colours instead of storing */
     int n;                             /* P_POLY: points */
     float x[16], y[16];                /* P_POLY: sample coordinates */
-    /* P_SPRITE: destination rectangle in samples, image */
+    /* P_SPRITE: destination rectangle in samples, image; P_ELLIPSE: the ellipse inscribed in the rectangle,
+     * less the one inscribed in the cut rectangle when cut is set (the moon's crescent) */
     float sx0, sy0, sx1, sy1;
+    bool cut;
+    float kx0, ky0, kx1, ky1;
     const EnhSprImg *img;
     /* P_BLOCKS: overlay pixels [first, first + count) of the snapshot, K x K samples each */
     int first, count;
@@ -153,14 +156,34 @@ typedef struct {
     bool gradient;
     u32 ground;
     const u8 *ground_haze;
+    /* depth (ENHANCED.md "Sprites"): what P_POLY writes into the target's depth buffer (the distance from the
+     * camera along the sample's line of sight): nothing, "nothing there" (clear), a constant, or its plane
+     * n . X = d (unit normal, camera at the origin). P_SPRITE: drawn only where zval is below the depth. */
+    u8 zmode;
+    float nx, ny, nz, d, zc;
+    bool ztest;
+    float zval;
 } EnhPrim;
+enum { Z_NONE, Z_CLEAR, Z_CONST, Z_PLANE };
+
+/* How a target's samples map back to lines of sight (the inverse of enh_scene.c's projection). */
+typedef struct {
+    bool mirror;
+    double base;                       /* bearing units: sx - base = atan2(dx, dz) * RAD2A */
+    double cam_row, roll_slope, cx32;  /* front: row = cam_row - elevation + roll_slope * (sx - cx32) */
+    double mirror_base, pitch, mroll;  /* mirror: sx = mirror_base + 1600h - 2 x; row per 8b5f */
+} EnhMap;
 
 typedef struct {
     int w, h;                          /* samples */
     u32 *s;
+    float *z;                          /* depth per sample */
     EnhPrim *prim;
     int nprim, cap;
     int k;                             /* samples per view pixel */
+    EnhMap map;
+    /* per column: sin / cos of the bearing and of the column's part of the elevation; per row: its part */
+    float *col_sb, *col_cb, *col_se, *col_ce, *row_se, *row_ce;
 } EnhTarget;
 
 void enh_target_reset(EnhTarget *t, int w_px, int h_px, int k);

@@ -106,8 +106,7 @@ The face list of the newest snapshot, drawn farthest first in the game's own sor
 from the order array): re-sorting at every displayed frame made coplanar faces (road markings on the road,
 decals) swap as their keys crossed during the smooth motion, a visible shimmer. Depth keys by the original's rule
 (nearest vertex, average, `s·11/32` for triangles, farthest-vertex flag) are evaluated in floating point for the
-view time only to merge the sprites, exactly as `323e` does (a sprite is drawn before a face when its key is
-larger). Per face, as `3a7c`:
+view time (for the haze, and for sprites against points and lines, see Sprites). Per face, as `3a7c`:
 
 * the front-view test (all x negative / all ≥ 2800h / none below 5400h, as 16-bit results) and otherwise the
   mirror test against `BD3D`; a face is drawn in at most one view;
@@ -143,6 +142,35 @@ cached copy W × H), linear in between; fixed-size sprites (kind 1) keep their 1
 `2999`: centred on the bearing, bottom on the elevation of its distance (clamped by `95CD`), the roll term;
 the mirror's half size (key × 2), its x and its rows. The visibility window (`hi(angle) + 8`), the key limits
 (`B6E2`, 980h, 10h) and the classes are the original's.
+
+`ENH:` **where a sprite goes among the faces.** `323e` merges the sprites into the sorted faces by depth key (a
+sprite before a face when its key is larger). Here the faces keep the game's order while the keys are the
+smooth camera's, so along that order they are not monotonic, and a small move of the camera put a sprite before
+the face it lies or stands on: the road markings (sprites 1 and 3, 6 × 2 white-and-yellow dashes lying on the
+road) and trees at the foot of slopes were drawn over, on and off. Measured while driving: 14..17 sprites a
+displayed frame drawn under a face that could not hide them, one of them switching every 2..3 displayed frames.
+Placing each sprite somewhere in the faces' order (after the faces that cannot hide it, before those in
+front of it) was tried and is not enough: no single place is right for a sprite that a car or a slope hides
+only in part, and the game's order itself is not exact (a large ground face a tree stands on can come after a
+hill in front of the tree), so trees still showed over cars and slopes.
+
+Instead the sprites are tested per sample. Every face, drawn in the game's order as before, leaves in the
+target's depth buffer the distance from the camera along each sample's line of sight: a polygon its plane
+(`Z_PLANE`: the line of sight of the sample, the inverse of the projection, `EnhMap` / `target_rays` in
+`enh_raster.c`, met with the plane `n · X = d`; checked: at every face's first corner it gives that corner's
+distance, to float precision), a lamp or a line the distance of its nearest end. The sky clears it; the OR
+faces (headlight beams) and the cockpit overlays leave it. Then the sprites are drawn farthest first, each
+sample only where the sprite's distance (to its base) less `SPR_ON_FACE` (64 units, so that what stands or
+lies on a surface, a tree on a slope, a road marking, is not hidden by it) is below the depth there. So a
+sprite is hidden exactly where something nearer covers it: partly behind a car, behind the crest of a hill,
+and the markings stay on the road. The sun and the moon are drawn first, behind everything. Measured at the
+default 1280 × 800, 2 × 2: 3.4 ms a frame (median), about as before.
+
+`ENH:` **the sun and the moon** (instance 8, sprites 5 and 4) are a solid disc (14 × 11, round with the VGA's
+tall pixels) and a crescent (8 × 11); scaled up they were blocky blobs. They are drawn as smooth shapes in the
+same rectangle and colour (`P_ELLIPSE`): the sun the inscribed ellipse, the moon a circle 11 image pixels across
+at the image's left edge less a 10 × 11 ellipse centred 10 pixels right of it (fitted to the image: 4 of its 88
+pixels differ).
 
 ## Sky and ground
 
@@ -196,7 +224,9 @@ edges tile exactly).
 A sample holds a colour pair and the weight of its high colour. The original's faces are two-colour checkerboard
 dithers; from afar a dither is its average, so a sample of a pair resolves to the average of the two DAC
 colours (weight 128), the sky gradient uses the weight for its blend, sprites and overlay pixels are solid.
-The top byte is the distance haze (0..255, the share of the horizon's sky colour). Resolving averages
+The top byte is the distance haze (0..255, the share of the horizon's sky colour). Beside it every sample has a
+depth (float, the distance along its line of sight to what was drawn there), used only to test the sprites
+(see Sprites). Resolving averages
 `aa × aa` samples per output pixel through the current DAC (fades and flashes included).
 
 ## Game speed
@@ -227,20 +257,14 @@ the car reacted to keys held up to a whole frame (158 ms) earlier. `ENH:` the fi
 one right before the physics. Measured: the steering wheel moves in the first frame after the key instead of the
 second. (The game's own steering still builds up over about three frames.)
 
-Keyboard steering (`steer_throttle`) moves the wheel (0..20h, centre 10h) by 1, 2, then 3 a read: from the
-centre to full lock in two frames at any speed, where the turn rate also doubles, so a tap jerked the car where
-the mouse (which sets the wheel directly) turns smoothly. `ENH:` away from the centre the wheel now moves by
-fractions that start at 0.85 a read and grow by 0.15 a read up to the original's 3, scaled by the frame's length
-(the same pace in seconds at any `--frame-ticks`) and by up to 40 % less at speed (150 mph and above).
-Measured at 14 ticks: full lock after 4 frames standing (the first frame moves the wheel 3 instead of 6),
-5 frames at 30 mph. Both keys and the mouse stay the original's. A counter-turn (the key turning the wheel back
-from the other side, 2 to 4 a read in the original) is eased the same way from a head start of 5 reads (1.6 a
-read standing), stops at the centre as the original does, and carries its pace on past it: from full right to
-full left in about 5 frames at 50 mph. The constants are `STEER_EASE_*` in `sim_controls.c`.
-
-At full lock (wheel 0 or 20h) the original doubles the turn (`sim_physics.c`, step 18): a jolt as the wheel
-gets there. `ENH:` the extra grows over the outer band instead, from none at 12 steps off the centre to 1.5
-times at full lock (16).
+Keyboard steering (`steer_throttle`) is the original's: the wheel (0..20h, centre 10h) moves by 1, 2, then 3
+a read (the hold count), 1 more far out when turning back, stops at the centre on a counter-turn; the turn
+doubles at full lock (`sim_physics.c`, step 18). Its steps are per control read, three a frame, so at a faster
+game speed the wheel swings faster in real time (23/14 times at the default 14 ticks). `ENH:` each read's step
+and the hold count's growth are scaled by the last frame's ticks / 23 (`STEER_TICKS`, the faithful port's
+pacing), the wheel keeping its fraction between reads: the same pace in seconds as the faithful port at any
+`--frame-ticks`, and exactly the original at 23. Measured: full lock 0.28 s after the key at 14 ticks, 0.32 s
+at 23 (frame granularity). Nothing else is tuned; the mouse and joystick are the original's.
 
 ## Finish marker
 
