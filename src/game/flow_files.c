@@ -2,6 +2,7 @@
  * and the file loaders, the name hash, PLAYDISK.DAT, car / scene .LST, the .HI file and the shared
  * front-end data. Segments 0000 / 01f4. */
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 #include "portcfg.h"
 
 #define ARCHIVE_DIR 0x049E          /* DS:049E, 14-byte entries {h2, h1, archive, 0, offset u32, size u32} */
@@ -331,6 +332,7 @@ s16 shared_scene_load(void)
     flow_strcpy(DS_path_program + 9, 0x1174);                  /* "SCENETT1.DAT" */
     file_load_near(DS_path_program, DS_sprite_set);
     sprites_prescale();
+    enh_sprites_loaded();                                      /* ENH: the menu preview's trees and signs */
     flow_strcpy(DS_path_program + 2, 0x117A);                  /* "NEWWAVE.MUS" */
     music_stop(0);
     file_load_far(DS_path_program, ds_far(DS_music_buf));

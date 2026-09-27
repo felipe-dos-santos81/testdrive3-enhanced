@@ -83,8 +83,8 @@ s16 main_menu(void)
                 DSB(DS_kbd_key) = 0;
             }
             DSB(DS_menu_preview) = 0;
-            enh_stop();                                        /* ENH */
             pal_fade_out_01F4_1C72();
+            enh_stop();                                        /* ENH: after the fade, which shows the view */
             flow_page(0);
             if (flow_vga()) {
                 gfx_set_colour(0);
