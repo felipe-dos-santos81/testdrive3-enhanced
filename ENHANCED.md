@@ -331,12 +331,12 @@ leg A of SCENE01 heads east); the mark follows the map.
 
 `police_update` (`sim_traffic.c`) starts a chase for any police car whose nearest vertex is within about F80h
 (depth key) of the camera while the car does 48 or more, in any direction: also one driving ahead the same
-way, which then speeds off in front of the player at chase speed. `ENH:` a moving police car going the same
-way (heading within 90° of the player's) that is ahead of the player (in front of the line across the car,
-`police_ahead`) does not start a chase; once the player has overtaken it, it does. Likewise a chasing police car
-tickets an opponent (same direction, within D8h) only once the opponent has overtaken it (object headings are
-the view's less 4000h). Oncoming police cars
-(which turn round) and parked ones (a speed trap) as before, and so do the radar detector and the pull-over.
+way, which then speeds off in front of the player at chase speed, and an oncoming one, which turns round in
+front of the player and blocks the road with its siren on. `ENH:` a police car that is still ahead of the player
+(in front of the line across the car, `police_ahead`), whichever way it faces or parked, does not start a
+chase; once the player has passed it, it does (the oncoming one then turning round, as the original). Likewise a
+chasing police car tickets an opponent (same direction, within D8h) only once the opponent has overtaken it
+(object headings are the view's less 4000h). The radar detector and the pull-over are as before.
 
 ## Composition
 

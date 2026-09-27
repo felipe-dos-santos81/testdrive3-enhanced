@@ -804,12 +804,12 @@ void police_update(void)
                 int close = 1;
                 if (!(dx & 0x4000)) {
                     if (DSB(DS_speedo_step) < 0x0C) close = 0;  /* car speed < 48 */
-                    /* ENH: the original starts a chase for any police car this near, also one driving ahead
-                     * the same way, which then races off in front of the player. Such a car only gives chase
-                     * once the player has overtaken it; oncoming and parked ones as before. */
-                    else if ((OW(DS_obj_waypoint, bx) & 0xFFC0)
-                             && (s8)(u8)((u8)((u16)(OW(DS_obj_heading, bx) - DSW(DS_obj_heading)) >> 8) - 0x40) < 0
-                             && police_ahead(bx, 0))
+                    /* ENH: the original starts a chase for any police car this near while it is still in front
+                     * of the player: one driving the same way races off ahead, an oncoming one turns round
+                     * (uturn_obj below) and blocks the road with its siren on, a parked one pulls out ahead. A
+                     * police car now gives chase only once the player has passed it (it is behind the line
+                     * across the player's car); then as the original, the oncoming one turning round. */
+                    else if (police_ahead(bx, 0))
                         close = 0;
                     else {
                         OW(DS_obj_flags, bx) = (u16)(dx | 0x40C0);   /* chase at speed class 3 */

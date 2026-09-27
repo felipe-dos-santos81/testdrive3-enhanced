@@ -35,6 +35,7 @@ void message_box(s16 id)
     save_fg = DSW(DS_text_fg);
     m = DSW((u16)(DS_msg_table + id * 2));
     x = (DSB(m) < 5) ? 0 : (s16)(DSB(m) * 8 - 0x28);        /* box from x to 319 - x */
+    if (id == 0x21) x = 0;                                  /* ENH: the reworded ticket message, from column 3 */
     flow_page(0);
     rect_save(x, (s16)(0x13f - x), 0x71, 0x85);
     gfx_set_colour(7);
@@ -44,7 +45,15 @@ void message_box(s16 id)
     gfx_set_colour(8);
     gfx_frame((s16)(x + 1), (s16)(0x13e - x), 0x72, 0x84);
     text_set_colours(0, 7);
-    print_records(m, 0);
+    if (id == 0x21) {
+        /* ENH: the original reads "You just got a ticket, :20 penalty" (":20" is 0:20 on the clock: the ticket adds
+         * 20 seconds to the race clock). Reworded, centred at column 3, row 15 as the original's record. */
+        static const char ticket[] = "You just got a ticket, 20 second penalty";
+        text_goto_cell(0x0F, 3);
+        for (const char *c = ticket; *c; c++) text_draw_char((const u8 *)c);
+    } else {
+        print_records(m, 0);
+    }
 
     switch (id) {
     case 5: {                                               /* joystick calibration */
