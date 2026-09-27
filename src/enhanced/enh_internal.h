@@ -9,8 +9,12 @@
 #define ENH_MAX_FACES   0x640
 #define ENH_MAX_OBJS    160
 #define ENH_MAX_SPRITES 0x98           /* the sprite list DS:8902.. */
+#define ENH_MAX_SPRITES_ALL (ENH_MAX_SPRITES + 8192)   /* and the far ones (enh_far.c) */
 #define ENH_MAX_OVPIX   8192           /* overlay pixels of one frame */
 #define ENH_MAX_OVCMD   64
+#define ENH_MAX_FAR_VERTS 32768        /* the far ring (enh_far.c) */
+#define ENH_MAX_FAR_FACES 32768
+#define ENH_MAX_ALL_VERTS (ENH_MAX_VERTS + ENH_MAX_FAR_VERTS)
 
 /* ---- snapshots (enhanced.c) ---- */
 
@@ -26,6 +30,13 @@ typedef struct {
     u16 id;                            /* sprite_id word (low byte: class/number, high: flags/countdown) */
     s16 x, y, z;
 } EnhSpr;
+
+/* A face of the far ring: the flag bits of the game's record words w0 (count, farthest flag, size) and w3 (type),
+ * the colour pair, and full vertex indices (the game's records hold 11 bits). */
+typedef struct {
+    u16 w0, w3, pair;
+    u16 v[4];
+} EnhFarFace;
 
 typedef enum { OV_PIXELS, OV_QUAD, OV_LINE } EnhOvKind;
 typedef struct {
@@ -67,7 +78,8 @@ typedef struct {
     u8   point_sizes[4], line_widths[4];
     /* sprites */
     int  nspr;
-    EnhSpr spr[ENH_MAX_SPRITES];
+    EnhSpr spr[ENH_MAX_SPRITES_ALL];   /* the game's list, then the far ring's (inst FFFFh) and the leg's beyond it */
+    int  nspr_game;
     u16  sprite_count;                 /* DS:9A71: instances from here on are the tiles' children */
     u16  world_cell, world_tab;        /* DS:BD34 / BD36: the cell and octant table the world was built for */
     u16  spr_min_dist, spr_far_limit;  /* DS:95CD, DS:B6E2 */
@@ -79,6 +91,10 @@ typedef struct {
     u32  ovpix[ENH_MAX_OVPIX];         /* V offset << 8 | colour */
     /* V as the frame left it (after the overlays) */
     u8   vbuf[0x7800];
+    /* the far ring (enh_far.c): cells beyond the game's own, vertices numbered on from nv, faces farthest first */
+    int  nfv, nff;
+    s16  fvx[ENH_MAX_FAR_VERTS], fvy[ENH_MAX_FAR_VERTS], fvz[ENH_MAX_FAR_VERTS];
+    EnhFarFace ff[ENH_MAX_FAR_FACES];
 } EnhSnap;
 
 /* The two newest frames (prev, cur). */
@@ -99,7 +115,7 @@ typedef struct {
 extern EnhPresent enh_present;
 
 /* ---- options (enhanced.c) ---- */
-extern int enh_scale, enh_aa, enh_motion_delay, enh_haze;
+extern int enh_scale, enh_aa, enh_motion_delay, enh_haze, enh_draw_dist;
 
 /* ---- the smooth view state of one displayed frame (enhanced.c) ---- */
 typedef struct {
@@ -108,11 +124,15 @@ typedef struct {
     double mroll_slope;                /* mirror: rows per 1/32 px of (sx - 9400h) before the halving */
     s8     roll;                       /* nearest code (sky flat/gradient choice) */
     /* vertices of the current snapshot, moving vehicles carried to the view time */
-    float  vx[ENH_MAX_VERTS], vy[ENH_MAX_VERTS], vz[ENH_MAX_VERTS];
+    float  vx[ENH_MAX_ALL_VERTS], vy[ENH_MAX_ALL_VERTS], vz[ENH_MAX_ALL_VERTS];   /* then the far ring's */
     /* per object: heading at the view time (u16 units, unwrapped) */
     double obj_heading[ENH_MAX_OBJS];
-    float  spr_x[ENH_MAX_SPRITES], spr_y[ENH_MAX_SPRITES], spr_z[ENH_MAX_SPRITES];
+    float  spr_x[ENH_MAX_SPRITES_ALL], spr_y[ENH_MAX_SPRITES_ALL], spr_z[ENH_MAX_SPRITES_ALL];
 } EnhView;
+
+/* ---- the far ring (enh_far.c) ---- */
+/* Build the snapshot's far ring: the cells within enh_draw_dist of the camera that the game did not build. */
+void enh_far_build(EnhSnap *s);
 
 /* ---- sprites (enh_sprite.c) ---- */
 typedef struct {
@@ -163,6 +183,9 @@ typedef struct {
     float nx, ny, nz, d, zc;
     bool ztest;
     float zval;
+    /* the far ring's faces also write the far depth; the game's faces are drawn only where they are nearer
+     * than it (a cell the game did not build can be nearer than one it did) */
+    bool zfar_write, zfar_test;
 } EnhPrim;
 enum { Z_NONE, Z_CLEAR, Z_CONST, Z_PLANE };
 
@@ -178,6 +201,7 @@ typedef struct {
     int w, h;                          /* samples */
     u32 *s;
     float *z;                          /* depth per sample */
+    float *zf;                         /* the far ring's depth per sample */
     EnhPrim *prim;
     int nprim, cap;
     int k;                             /* samples per view pixel */
@@ -195,3 +219,6 @@ extern EnhTarget enh_front, enh_mirror;
 void enh_scene_build(const EnhSnap *s, const EnhView *v);
 /* the colour the haze tends to: the sky at the horizon, as a sample value (resolved through the current DAC) */
 u32 enh_haze_colour(const EnhSnap *s);
+/* the game's ground under (x4, z4): the highest ground-like face there not more than `above` over y (-1e9: none) */
+double enh_ground_height(const EnhSnap *s, double x4, double z4, double y, double above);
+#define ENH_EYE_CLEAR 20.0             /* the least height of the view's eye over the ground (a steep slope) */

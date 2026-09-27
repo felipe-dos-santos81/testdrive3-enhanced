@@ -105,6 +105,7 @@ bool enh_sprite_pick(u8 s, double a, const EnhSprImg **img, double *w, double *h
         dims_at(e, a0 + 1, &w1, &h1);
         *w = w0 + (w1 - w0) * f;
         *h = h0 + (h1 - h0) * f;
+        if (a < 1.0) { *w = w1 * a; *h = h1 * a; }    /* ENH: beyond the game's range, in proportion (far ring) */
     }
     return *w > 0.0 && *h > 0.0;
 }

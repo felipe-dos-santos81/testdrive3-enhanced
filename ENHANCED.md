@@ -6,12 +6,13 @@ cockpit and HUD, all at the game's own pace (about 6.3 frames a second in a race
 the host, for every displayed frame, and lays the result over the VGA screen.
 
 Stage 1 (this version): **smooth motion at the display's rate** and **smooth, high-resolution graphics** from
-the original data only. The draw distance is the original's (the same 3, 6 or 10 map cells, the same sprite
-and object ranges): what the game builds is what is drawn.
+the original data only. The draw distance is extended to 7 map cells around the camera (see Draw distance);
+within the game's own 3, 6 or 10 cells what the game builds is what is drawn.
 
 Files: `enhanced.c` (hooks, snapshots, the overlay record, the smooth view state, composition),
 `enh_scene.c` (projection, faces, sprites, mirror, sky and ground as draw lists), `enh_raster.c` (draw lists
-into sample buffers), `enh_sprite.c` (native sprite images and sizes), `enh_internal.h`.
+into sample buffers), `enh_sprite.c` (native sprite images and sizes), `enh_far.c` (the far ring),
+`enh_internal.h`.
 
 ## Hooks
 
@@ -65,7 +66,12 @@ or two late keeps moving; a game that stops — message boxes, pause, the crash 
   the newest: early in a frame the blend still follows the old trajectory, which keeps falling after a landing
   and keeps level where the road turns up a steep slope, and a late frame extrapolates a fall; either put the
   eye under the ground for a moment (the triangle around the camera then filled upwards, the map seen from
-  below). Moving vehicles are likewise not guessed downwards.
+  below). Moving vehicles are likewise not guessed downwards. And the eye is kept `ENH_EYE_CLEAR` (20 units)
+  over the game's ground under it (`enh_ground_height`: the highest triangle or quad containing the eye, seen
+  from above, no steeper than 1.5, not more than 84 over the eye, so not a bridge deck): on a steep slope the
+  game's own eye sinks to the surface and a frame or two below it (measured on a 21-degree slope: 6 units above,
+  then 6 below, about 46 on the flat, while driving onto it the ground rose 15 under an eye held level), and the
+  view showed the underside of the slope.
 * **Moving vehicles** (traffic, police, opponents, the player's car in the external views) are carried with
   `traj_n` too, and turned to their exact interpolated heading: the original builds a model at the high byte
   of its heading (1.4° steps); here the difference to the full 16-bit heading is added around the object's
@@ -186,8 +192,9 @@ pitch and roll, its halved rows included).
 upgraded renderer tints what is beyond five tiles by up to 25 % towards a pale sky colour). Here what is far
 away takes on some of the colour of the sky at the horizon (the gradient's lowest band, or the flat sky pair),
 resolved through the current DAC, so the haze follows the time of day, the weather, fades and flashes by
-itself. The amount is `--haze` (default 30 %) × `smoothstep` of the depth from `ENH_HAZE_NEAR` (C00h) to
-`ENH_HAZE_FAR` (3000h, depth-key units: the farthest faces are about 2800h at medium detail):
+itself. The amount is `--haze` (default 30 %) × `smoothstep` of the depth from `ENH_HAZE_NEAR` (C00h) to the
+edge of the far ring (`--draw-distance` × 1000h, depth-key units, so that the edge fades out), or without it
+`ENH_HAZE_FAR` (3000h: the farthest faces are about 2800h at medium detail):
 
 * faces by the average depth of their corners (the key's own rule would haze a long face by its far end);
   not the OR faces (headlight beams), nor the lamps at night;
@@ -199,6 +206,37 @@ itself. The amount is `--haze` (default 30 %) × `smoothstep` of the depth from 
 The haze is the top byte of the sample (see Rasterising). Measured at medium detail: the faces reach depth
 keys of 9000..11000, the trees stop at 1100h (`B6E2`). Not in the main menu's preview, nor on the mirror's
 ground.
+
+## Draw distance
+
+The game builds the 3, 6 or 10 map cells nearest the camera (`world_build_visible`, a table per heading
+octant), lists the leg's own sprites (trees, rocks, animals) only within a cell of the car, and draws sprites
+only up to C00h / 1100h / 1C00h (`B6E2`, by detail): scenery appears a few hundred metres ahead. Its buffers
+hold 1600 vertices and faces, its physics reads the ground from the renderer, so it is not asked for more.
+
+`ENH:` the enhanced view builds the rest itself (`enh_far.c`), for every game frame, read-only: every map cell
+whose centre is within `--draw-distance` cells of the camera (default 7) and which lies wholly within 7.5 cells
+of it on each axis (vertex coordinates are 16-bit, x4 units: they wrap 8 cells from the camera, and a wrapped
+vertex made a face across the sky; a model with a vertex beyond `FAR_REACH` is dropped whole) that the
+game did not build (`enh_world_begin` / `enh_world_cell` record its cells in `world_build_visible`), from the
+same tile and object models as `model_place`: the vertices rotated as `vertex_rotate`, the faces coloured as
+`model_emit_faces`, the cell's static objects as `world_build_visible` selects them, the tiles' sprite children
+thinned by the vegetation seed exactly as the game does (so a cell looks the same when the game takes it over),
+and the leg's own sprites beyond the game's list, with their live ids. The faces are sorted farthest first by
+the original's key at the snapshot's camera (per game frame, so coplanar faces do not swap between displayed
+frames). Parked objects (houses, boats: flags 1000h without 2000h), which the game draws only within its window
+around the car (`509b`, `B6E0`: they appeared a cell and a half away), are added from their near model where
+the game did not emit them this frame; not the lightning bolt (flags 1Fxxh, object model 21, a white mast 1344
+units high that `509b` shows only in a storm, at random, with a sky flash: drawn always, it stood as white spikes
+over the night legs). A face of the ring that surrounds the camera is not drawn: the view runs
+up to a game frame behind, so just after the game moves into a new cell the view can still be in the old one,
+which the ring then holds; filled around the camera, its ground covered the sky (green flashes) and, as depth,
+hid nearby cars and scenery. They are drawn before the game's faces and leave their depth in a second, far buffer; the game's faces
+are then drawn only where they are nearer than it (with 1 % allowance), since a cell the game skipped at the
+side can be nearer than one it built ahead. Sprites reach as far as the ring (their size below the game's
+smallest copy in proportion to the angle) and are tested against both. The ring's lamps are not drawn (a lamp
+needs its owner object). Measured: at most about 4500 faces and 700 sprites in the ring; 4.2 ms a frame at the
+default 1280 × 800, 2 × 2 against 3.3 ms without it. `--draw-distance 0` draws the game's cells only.
 
 ## Overlays
 
@@ -282,7 +320,9 @@ leg A of SCENE01 heads east); the mark follows the map.
 (depth key) of the camera while the car does 48 or more, in any direction: also one driving ahead the same
 way, which then speeds off in front of the player at chase speed. `ENH:` a moving police car going the same
 way (heading within 90° of the player's) that is ahead of the player (in front of the line across the car,
-`police_ahead`) does not start a chase; once the player has overtaken it, it does. Oncoming police cars
+`police_ahead`) does not start a chase; once the player has overtaken it, it does. Likewise a chasing police car
+tickets an opponent (same direction, within D8h) only once the opponent has overtaken it (object headings are
+the view's less 4000h). Oncoming police cars
 (which turn round) and parked ones (a speed trap) as before, and so do the radar detector and the pull-over.
 
 ## Composition
@@ -307,6 +347,7 @@ the display rate (VSync).
 | `--aa N` | 2 | N × N samples per output pixel (1 = off; res scale × aa is kept ≤ 16) |
 | `--motion-delay P` | 100 | percent of a game frame the smooth view runs behind the game (below 100 it guesses ahead) |
 | `--haze P` | 30 | distance haze: percent of the horizon's sky colour on what is farthest (0 = off) |
+| `--draw-distance N` | 7 | map cells drawn around the camera (0..7; 0 = the game's own cells) |
 | `--classic` | | the original's picture only (at `--res-scale`, default 1) |
 
 ## Developer aids
@@ -317,12 +358,12 @@ the display rate (VSync).
   speed, held direction bits, brake, throttle, steering wheel.
 * `TD3_KBD_LOG=file` (`host.c`): every XT byte fed to the game's keyboard handler, with its time.
 * `TD3_ENH_BLEND=frames`: how long a new frame's motion takes to take over (default 1).
+* `TD3_START_LEG=n` (`flow.c`): the race starts at leg n (0-based), to reach a later leg's scenery quickly.
 * `TD3_DEBUG_KEYS=1` (`race_run`): turns on the original's dormant debug keys, Shift+T rain, Shift+S snow,
   Shift+N night (they also make the car invulnerable), to check the renderer in weather.
 * The port's `TD3_SNAPSHOT_DIR` / `TD3_KEYS` work as before; snapshots are saved at the output resolution.
 
 ## Later
 
-Longer draw distance (more cells, larger sprite and object ranges; the haze would then move out with it),
-widescreen, the original's dither as an
+Traffic beyond the game's range, lamps in the far ring, widescreen, the original's dither as an
 option, weather effects animated at the display rate, the menu preview's own pacing.

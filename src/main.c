@@ -2,7 +2,7 @@
  *
  * usage: testdrive3-enhanced [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]
  *                [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]
- *                [--haze P] [--finish-marker 0|1] [--classic] [--check]
+ *                [--haze P] [--draw-distance N] [--finish-marker 0|1] [--classic] [--check]
  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
  *   --scale       initial window scale: 320x240 times N (default 3)
  *   --fullscreen  start in full screen (Alt+Enter switches)
@@ -18,6 +18,7 @@
  *                 0 = no delay, extrapolated; 100 = a whole frame, interpolated only)
  *   --haze        ENH: distance haze, percent of the horizon's sky colour on what is farthest (default 30,
  *                 0 = off)
+ *   --draw-distance ENH: map cells drawn around the camera (default 7, 0..7; 0 = the game's own 3/6/10 cells)
  *   --finish-marker ENH: the direction of the leg's finish (the gas station) on the compass (default 1; 0 = off)
  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
  *   --check       load and verify the original executable, print a summary and exit (no window)
@@ -41,7 +42,7 @@ static int usage(const char *prog)
     fprintf(stderr,
             "usage: %s [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]\n"
             "          [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]\n"
-            "          [--haze P] [--finish-marker 0|1] [--classic] [--check]\n", prog);
+            "          [--haze P] [--draw-distance N] [--finish-marker 0|1] [--classic] [--check]\n", prog);
     return 2;
 }
 
@@ -51,7 +52,7 @@ int main(int argc, char **argv)
     int scale = 3;
     bool check = false, fullscreen = false, classic = false;
     int res_scale = -1, aa = ENH_DEFAULT_AA, motion_delay = ENH_DEFAULT_MOTION_DELAY;
-    int haze = ENH_DEFAULT_HAZE;
+    int haze = ENH_DEFAULT_HAZE, draw_dist = ENH_DEFAULT_DRAW_DIST;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--game-dir") && v) { dir = v; i++; }
@@ -71,6 +72,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--aa") && v) { aa = atoi(v); i++; }
         else if (!strcmp(a, "--motion-delay") && v) { motion_delay = atoi(v); i++; }
         else if (!strcmp(a, "--haze") && v) { haze = atoi(v); i++; }
+        else if (!strcmp(a, "--draw-distance") && v) { draw_dist = atoi(v); i++; }
         else if (!strcmp(a, "--finish-marker") && v) { portcfg.finish_marker = atoi(v) != 0; i++; }
         else if (!strcmp(a, "--classic")) classic = true;
         else if (!strcmp(a, "--check")) check = true;
@@ -92,7 +94,7 @@ int main(int argc, char **argv)
     }
 
     if (res_scale < 0) res_scale = classic ? 1 : ENH_DEFAULT_RES_SCALE;
-    enh_init(!classic, res_scale, aa, motion_delay, haze);
+    enh_init(!classic, res_scale, aa, motion_delay, haze, draw_dist);
     if (!host_init(dir, scale, fullscreen)) return 1;
     vga_init();      /* mode 13h model: frame source, DAC, CRTC start */
     modules_init();  /* host handlers, code-pointer tables (modules.c) */

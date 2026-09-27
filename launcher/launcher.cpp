@@ -49,6 +49,12 @@ const MotionPreset MOTION[] = {
     {0, "Most direct: a whole frame guessed ahead"},
 };
 // Distance haze: percent of the horizon's sky colour on what is farthest away (presets; the first is the default).
+struct DrawPreset { int cells; const char* name; };
+const DrawPreset DRAW[] = {
+    {7, "Far: 7 cells around (recommended)"},
+    {5, "Medium: 5 cells around"},
+    {0, "Original: the game's own 3 to 10 cells"},
+};
 struct HazePreset { int percent; const char* name; };
 const HazePreset HAZE[] = {
     {30, "Normal"},
@@ -235,6 +241,10 @@ LauncherDialog::LauncherDialog()
                       "What is far away takes on some of the sky's colour at the horizon, the ground too: the "
                       "distance reads better and the scenery appearing at the edge of the view stands out less.");
     for (const auto& h : HAZE) haze_->Append(h.name);
+    draw_ = ChoiceRow(vb, viewGrid, "&Draw distance:",
+                      "How far the scenery reaches: the enhanced view also draws the map cells around the camera that "
+                      "the game itself leaves out (its detail level builds 3, 6 or 10 cells ahead), with their trees.");
+    for (const auto& d : DRAW) draw_->Append(d.name);
     viewBox->Add(viewGrid, 0, wxALL, gap);
     graphics_->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) { UpdateState(); });
 
@@ -321,6 +331,10 @@ LauncherDialog::LauncherDialog()
     haze_->SetSelection(0);
     for (size_t i = 0; i < sizeof HAZE / sizeof HAZE[0]; ++i)
         if (HAZE[i].percent == haze) haze_->SetSelection(static_cast<int>(i));
+    const int draw = settings::GetInt(SECTION, "DrawDistance", DRAW[0].cells);
+    draw_->SetSelection(0);
+    for (size_t i = 0; i < sizeof DRAW / sizeof DRAW[0]; ++i)
+        if (DRAW[i].cells == draw) draw_->SetSelection(static_cast<int>(i));
     loading_ = false;
     Reload();
 
@@ -370,6 +384,7 @@ void LauncherDialog::UpdateState() {
     aa_->Enable(enhanced);
     motion_->Enable(enhanced);
     haze_->Enable(enhanced);
+    draw_->Enable(enhanced);
     car_->Enable(!catalogue_.cars.empty());
     course_->Enable(!catalogue_.courses.empty());
     play_->Enable(ok);
@@ -412,6 +427,7 @@ void LauncherDialog::Play() {
     options.aa = aa_->GetSelection() + 1;
     options.motionDelay = MOTION[wxMax(0, motion_->GetSelection())].delay;
     options.haze = HAZE[wxMax(0, haze_->GetSelection())].percent;
+    options.drawDistance = DRAW[wxMax(0, draw_->GetSelection())].cells;
     wxString error;
     if (!LaunchGame(options, error)) wxMessageBox(error, APP_TITLE, wxOK | wxICON_ERROR, this);
 }
@@ -436,6 +452,7 @@ void LauncherDialog::Save() {
     settings::SetInt(SECTION, "AntiAliasing", aa_->GetSelection() + 1);
     settings::SetInt(SECTION, "Motion", MOTION[wxMax(0, motion_->GetSelection())].delay);
     settings::SetInt(SECTION, "Haze", HAZE[wxMax(0, haze_->GetSelection())].percent);
+    settings::SetInt(SECTION, "DrawDistance", DRAW[wxMax(0, draw_->GetSelection())].cells);
     settings::SaveWindowPosition(SECTION, this);
 }
 

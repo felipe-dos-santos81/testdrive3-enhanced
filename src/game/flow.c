@@ -4,6 +4,8 @@
 #include "game/game.h"
 #include "portcfg.h"
 
+#include <SDL3/SDL.h>
+
 /* 0000:0000 main — game_flow.md §4.1 / §4.1.1 (verified against 0000:0000-07e3) */
 static u32 flow_hundredths(u8 min, u8 sec, u8 frac)    /* inline in main: min*6000 + sec*100 + frac*10 */
 {
@@ -93,6 +95,10 @@ int game_main(void)
             /* ---- §4.1.1: legs x players and the results arithmetic (inline in main) ---- */
             playdisk_verify();
             DSB(DS_leg_index) = 0;
+            {   /* ENH developer aid: TD3_START_LEG=n starts the race at leg n (0-based) */
+                const char *e = SDL_getenv("TD3_START_LEG");
+                if (e && SDL_atoi(e) > 0 && SDL_atoi(e) < DSB(DS_leg_count)) DSB(DS_leg_index) = (u8)SDL_atoi(e);
+            }
             last_leg_done = 0;
             DSB(DS_auto_gearbox) = (s16)DSW(DS_skill_level) < 3;
             for (s16 p = 0; p < 4; p++) {

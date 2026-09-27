@@ -49,6 +49,7 @@ private:
     wxChoice* aa_ = nullptr;          // off, 2x2, 3x3, 4x4
     wxChoice* motion_ = nullptr;      // MOTION[] presets
     wxChoice* haze_ = nullptr;        // HAZE[] presets
+    wxChoice* draw_ = nullptr;        // DRAW[] presets
     wxButton* play_ = nullptr;
 
     Catalogue catalogue_;

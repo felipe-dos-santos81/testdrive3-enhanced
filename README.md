@@ -100,6 +100,7 @@ launcher's wxWidgets DLLs next to them. The MSYS2 `SDL3.dll` also needs `libicon
 | `--aa N` | Anti-aliasing: N×N samples per pixel (default 2, 1 = off; resolution × N is kept ≤ 16) |
 | `--motion-delay P` | How far the smooth view runs behind the game, in percent of a game frame (default 100: moves between the game's frames, never guesses ahead; 50 or 0 guess half or a whole frame ahead, answering sooner but overshooting when the steering changes) |
 | `--haze P` | Distance haze: what is far away takes on this percent of the horizon's sky colour (default 30, 0 = off) |
+| `--draw-distance N` | Map cells drawn around the camera, beyond the game's own 3 to 10 (default 7, 0..7; 0 = the game's own) |
 | `--classic` | The original picture only, no enhanced view (scaled to `--res-scale`, default 1) |
 | `--frame-ticks N` | Game speed: timer ticks per frame while driving (default 14, chosen by play-testing; 10: the scenery passes about as fast as the speedometer says; the faithful port's 23 passes it at a third; 5 = the original's limit). The race clock counts real seconds at any speed |
 | `--sound adlib\|speaker` | Sound device (default: `TD3.CFG`'s, AdLib without it) |

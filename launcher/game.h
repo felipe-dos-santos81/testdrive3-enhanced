@@ -54,6 +54,7 @@ struct GameOptions {
     int aa = 2;             // --aa: anti-aliasing, aa x aa samples a pixel (1 = off)
     int motionDelay = 50;   // --motion-delay: percent of a game frame the smooth view runs behind
     int haze = 30;          // --haze: distance haze, percent of the horizon's sky colour (0 = off)
+    int drawDistance = 7;   // --draw-distance: map cells drawn around the camera (0 = the game's own)
 };
 
 // Starts the game. On failure returns false and says why in `error`.

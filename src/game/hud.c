@@ -62,12 +62,8 @@ tail:
     (void)k;
     if (DSB(DS_crashed) == 0 && DSB(DS_ext_view) == 0) {
         if ((DSW(DS_speed_long) | DSW(DS_speed_long + 2)) != 0 &&
-            DSB(DS_steer_hold) == 0 && DSB(DS_mouse_on) == 0 && DSB(DS_wheel_centring) != 0 &&
-            !(DSB(DS_frame_counter) & 1)) {
-            if (DSB(DS_steer_wheel) >= 0x0E && DSB(DS_steer_wheel) <= 0x12) DSB(DS_steer_wheel) = 0x10;
-            if (DSB(DS_steer_wheel) < 0x0E) DSB(DS_steer_wheel) = (u8)(DSB(DS_steer_wheel) + 2);
-            if (DSB(DS_steer_wheel) > 0x12) DSB(DS_steer_wheel) = (u8)(DSB(DS_steer_wheel) - 2);
-        }
+            DSB(DS_mouse_on) == 0 && DSB(DS_wheel_centring) != 0)
+            steer_centre();                         /* ENH: even and frame-paced (sim_controls.c) */
         wheel_update();
     }
 }

@@ -18,7 +18,9 @@
                                           only interpolates between frames it has (never overshoots when the
                                           steering changes) */
 #define ENH_PITCH_SMOOTH_MS   60.0     /* low-pass on the camera pitch (horizon row) */
-#define ENH_DEFAULT_HAZE      30       /* distance haze: percent of the horizon's sky colour at ENH_HAZE_FAR */
+#define ENH_DEFAULT_HAZE      30       /* distance haze: percent of the horizon's sky colour at the far edge */
+#define ENH_DEFAULT_DRAW_DIST 7        /* draw distance in map cells (enh_far.c; 0 = the game's own cells only) */
+#define ENH_MAX_DRAW_DIST     7        /* 16-bit vertex coordinates reach 8 cells from the camera */
 #define ENH_HAZE_NEAR     0x0C00       /* depth (the faces' key units) where the haze begins */
 #define ENH_HAZE_FAR      0x3000       /* ... and where it is full (the farthest faces: about 2800h at medium detail) */
 #define ENH_HAZE_EYE        50.0       /* the eye's height over the ground, for the ground's distance by row */
@@ -28,7 +30,11 @@
 
 /* main.c: enabled = false is --classic (the original's picture, scaled). res_scale 1..8, aa 1..4,
  * motion_delay 0..100, haze 0..100 (0 = off). */
-void enh_init(bool enabled, int res_scale, int aa, int motion_delay, int haze);
+void enh_init(bool enabled, int res_scale, int aa, int motion_delay, int haze, int draw_dist);
+
+/* world_build_visible (render_world.c): the world is built anew (begin), cell c of the leg map is built. */
+void enh_world_begin(void);
+void enh_world_cell(u16 c);
 bool enh_enabled(void);
 int  enh_res_scale(void);             /* the output scale (1 with --classic unless --res-scale says otherwise) */
 

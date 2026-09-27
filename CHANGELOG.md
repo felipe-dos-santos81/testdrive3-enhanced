@@ -59,7 +59,26 @@
   window points to the leg's gas station, an arrow at its edge when the finish lies further to the side.
 - Police: a police car driving ahead in the same direction started a chase as soon as the player came near at
   48 or more, while still behind it (the original checks only the distance). It now gives chase only once
-  overtaken; oncoming and parked police cars as before (`ENH:` in `police_update`, `sim_traffic.c`).
+  overtaken; oncoming and parked police cars as before (`ENH:` in `police_update`, `sim_traffic.c`). The same
+  for the opponents: a chasing police car gives them a ticket only once they have overtaken it.
+- Steering in bursts: the car moved along its course rounded to 1/64 of a turn (curves driven as straight runs
+  with 5.6-degree kinks), the turn doubled suddenly on the last wheel step, the wheel self-centring (C) moved
+  6 then 0 on alternate frames and pulled the wheel back during the first read of a key press, a frame that ran
+  late turned less per tick, and the smooth view turned by the camera heading rounded to 64 units. The course
+  is now used whole, the doubling is reached over the last 4 wheel steps, the centring is even and frame-paced
+  and stops while a steering key is held, the turn is in proportion to the frame's length (unchanged at the
+  configured pacing), and the smooth view takes the unrounded heading (`ENH:` in `sim_physics.c`,
+  `sim_controls.c`, `enhanced.c`).
+- Seeing under a steep slope when driving onto it at speed: the game's own eye sinks to the surface and a frame
+  or two below it there. The enhanced view keeps the eye at least 20 units over the ground under it.
+- Draw distance (`--draw-distance`, default 7 map cells around the camera; launcher "Draw distance"): the
+  enhanced view builds the cells beyond the game's own 3 to 10 itself, read-only from the same tile and object
+  models, with their static objects and trees (thinned exactly as the game does), and the leg's trees and rocks
+  as far; the haze fades out at the new edge. The game's own cells are unchanged. Parked objects (houses,
+  boats), which the game shows only within a cell and a half, reach as far too, but not the lightning bolts
+  (white spikes to the sky on the night legs: the game shows them only in a storm). Fixed after the first try:
+  green flashes over the sky and nearby cars and scenery vanishing for a moment (a vertex beyond the 16-bit
+  reach of the camera wrapped around, and a far cell the view had not yet left was filled around the camera).
 - Distance haze (`--haze`, default 30 %; launcher "Haze"), after the distance colouring of Play Stunts' upgraded
   renderer (github.com/ACatWithEbola/playstunts): faces, trees and the ground take on some of the horizon's sky
   colour with distance, through the current palette (day, night, weather and fades follow), which also softens

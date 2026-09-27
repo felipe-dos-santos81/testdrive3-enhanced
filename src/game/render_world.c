@@ -6,6 +6,7 @@
  * All state lives in mem[] at the original DGROUP addresses; vertex arguments are byte offsets (2v). */
 #define RENDER3D_INTERNAL
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* sar by CL: the count is masked to 5 bits (286+); counts 16..31 fill with the sign */
 static s16 sar16(s16 v, u8 n) { n &= 31; return n >= 15 ? (s16)(v < 0 ? -1 : 0) : (s16)(v >> n); }
@@ -52,6 +53,7 @@ void world_build_visible(void)
     DSW(DS_last_octab) = tab;
     DSB(DS_faces_resort) = 1;
     obj_ranges_clear();
+    enh_world_begin();                                    /* ENH: the far ring skips the cells built here */
     DSW(DS_face_count) = 0;
     DSW(DS_vert_count) = 0;
     DSB(DS_sprite_children) = 0;
@@ -85,6 +87,7 @@ void world_build_visible(void)
         c = (u16)((c & 0xFFE0) | cl);
         c = (u16)((c + ((d & 0xFF00) | (u8)((u8)d ^ ax_lo))) & 0x1FF);
         DSW(DS_cur_obj_slot1) = 0;
+        enh_world_cell(c);                                /* ENH */
         u16 m = DSW(DS_leg_map + 2 * c);
         DSW(DS_place_y) = (u16)(m & 0x3F00);
         DSB(DS_place_rot) = (u8)((m >> 8) & 0xC0);

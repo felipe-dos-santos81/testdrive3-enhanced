@@ -18,10 +18,11 @@ void enh_target_reset(EnhTarget *t, int w_px, int h_px, int k)
     if (w != t->w || h != t->h || !t->s) {
         size_t n = (size_t)(w > 0 ? w : 1) * (size_t)(h > 0 ? h : 1), wc = (size_t)(w > 0 ? w : 1),
                hc = (size_t)(h > 0 ? h : 1);
-        free(t->s); free(t->z);
+        free(t->s); free(t->z); free(t->zf);
         free(t->col_sb); free(t->col_cb); free(t->col_se); free(t->col_ce); free(t->row_se); free(t->row_ce);
         t->s = malloc(sizeof(u32) * n);
         t->z = malloc(sizeof(float) * n);
+        t->zf = malloc(sizeof(float) * n);
         t->col_sb = malloc(sizeof(float) * wc); t->col_cb = malloc(sizeof(float) * wc);
         t->col_se = malloc(sizeof(float) * wc); t->col_ce = malloc(sizeof(float) * wc);
         t->row_se = malloc(sizeof(float) * hc); t->row_ce = malloc(sizeof(float) * hc);
@@ -86,6 +87,7 @@ EnhPrim *enh_prim_add(EnhTarget *t, EnhPrimKind kind)
     p->n = 0;
     p->zmode = Z_NONE;
     p->ztest = false;
+    p->zfar_write = p->zfar_test = false;
     return p;
 }
 
@@ -122,14 +124,20 @@ static void raster_poly(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
         if (c0 < 0) c0 = 0;
         if (c1 > t->w) c1 = t->w;
         u32 *row = t->s + (size_t)r * t->w;
-        if (p->or_mode) for (int c = c0; c < c1; c++) row[c] |= p->value & 0xFFFF;
-        else for (int c = c0; c < c1; c++) row[c] = p->value;
-        float *z = t->z + (size_t)r * t->w;
-        switch (p->zmode) {
-        case Z_CLEAR: for (int c = c0; c < c1; c++) z[c] = FLT_MAX; break;
-        case Z_CONST: for (int c = c0; c < c1; c++) z[c] = p->zc; break;
-        case Z_PLANE: for (int c = c0; c < c1; c++) z[c] = plane_depth(t, p, c, r); break;
-        default: break;
+        float *z = t->z + (size_t)r * t->w, *zf = t->zf + (size_t)r * t->w;
+        if (p->zmode == Z_CLEAR) {
+            for (int c = c0; c < c1; c++) { row[c] = p->value; z[c] = zf[c] = FLT_MAX; }
+            continue;
+        }
+        bool test = p->zfar_test && p->zmode != Z_NONE;
+        for (int c = c0; c < c1; c++) {
+            float d = p->zmode == Z_PLANE ? plane_depth(t, p, c, r) : p->zc;
+            if (test && d > zf[c] * 1.01f) continue;            /* the far ring is nearer here */
+            if (p->or_mode) row[c] |= p->value & 0xFFFF;
+            else row[c] = p->value;
+            if (p->zmode == Z_NONE) continue;
+            z[c] = d;
+            if (p->zfar_write) zf[c] = d;
         }
     }
 }
@@ -220,7 +228,8 @@ static void raster_sky(const EnhTarget *t, const EnhPrim *p, int y0, int y1)
         u32 *row = t->s + (size_t)r * t->w;
         float *z = t->z + (size_t)r * t->w;
         float yc = (float)r + 0.5f;
-        for (int c = 0; c < t->w; c++) z[c] = FLT_MAX;                  /* nothing there yet */
+        float *zf = t->zf + (size_t)r * t->w;
+        for (int c = 0; c < t->w; c++) z[c] = zf[c] = FLT_MAX;          /* nothing there yet */
         for (int c = 0; c < t->w; c++) {
             float d = (p->hy0 + p->hslope * ((float)c + 0.5f) - yc) / k;   /* rows above the horizon */
             if (d <= 0.0f) {                                                /* the ground */

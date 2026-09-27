@@ -16,6 +16,7 @@ void replay_clear(void);
 void replay_update(void);
 /* 0e12:0080 controls_poll_far — simulation.md §4.4 (call 0e12:0751; retf) */
 void controls_poll_far(void);
+void steer_centre(void);                   /* ENH: wheel self-centring, one control read's share */
 /* 0e12:0084 key_dispatch — simulation.md §4.7 (DS:E08C: 40h-7Fh via 0e12:0000, 81h-8Ah via DS:B6EF when race_state < 2) */
 void key_dispatch(void);
 /* 0e12:044e life_lost — simulation.md §4.10 (lives message, F10 replay request, next life or game over; skip = 1 from F5) */
@@ -54,6 +55,8 @@ void landing_damage(void);
 void random_damage(void);
 /* 0e12:23b1 grip_yaw_limit — simulation.md §4.3 (far; max course change per frame) */
 u16 grip_yaw_limit(u16 g);
+/* ENH: the heading car_physics set DS:view_heading from, before its rounding to 64 units (for the smooth view) */
+extern u16 sim_fine_heading;
 /* 0e12:6686 pitch_shear — simulation.md §4.3 (far; pitch -> model shear code, AL) */
 u8 pitch_shear(u16 p);
 /* 0e12:61d2 police_pursuit_clear — simulation.md §4.13 (near; pull-over count 0, clear 4040h of all police) */

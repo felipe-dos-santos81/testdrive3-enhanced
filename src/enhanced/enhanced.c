@@ -19,8 +19,9 @@ EnhSnap *enh_prev = &snaps[0], *enh_cur = &snaps[1];
 EnhPresent enh_present;
 static bool pair_ok;                  /* prev -> cur is a continuous step (interpolate / extrapolate) */
 
-void enh_init(bool on, int res_scale, int aa, int motion_delay, int haze)
+void enh_init(bool on, int res_scale, int aa, int motion_delay, int haze, int draw_dist)
 {
+    enh_draw_dist = draw_dist < 0 ? 0 : draw_dist > ENH_MAX_DRAW_DIST ? ENH_MAX_DRAW_DIST : draw_dist;
     enh_haze = haze < 0 ? 0 : haze > 100 ? 100 : haze;
     enabled = on;
     enh_scale = res_scale < 1 ? 1 : res_scale > ENH_MAX_RES_SCALE ? ENH_MAX_RES_SCALE : res_scale;
@@ -177,6 +178,14 @@ void enh_frame_drawn(void)
     s->cam_x4 = DSW(DS_cam_x4);
     s->cam_z4 = DSW(DS_cam_z4);
     s->heading = DSW(DS_cam_heading);
+    /* The cockpit camera's heading is the car's rounded to 64 units, so the turn between two frames varied by up
+     * to 64 in a steady turn and the view sped up and slowed down every few frames. The unrounded heading the
+     * rounding came from is taken while it still matches (not in the chase view or a replay's own camera). */
+    {
+        extern u16 sim_fine_heading;
+        if (!s->ext_view && (u16)(sim_fine_heading & 0xFFC0) == (u16)DSW(DS_cam_heading))
+            s->heading = sim_fine_heading;
+    }
     s->cam_y = DSS(DS_cam_y_949E);
     s->cam_row = DSS(DS_cam_row);
     s->pitch = DSS(DS_pitch);
@@ -243,6 +252,7 @@ void enh_frame_drawn(void)
         e->y = DSS(DS_sprite_y + 2 * e->inst);
         e->z = DSS(DS_sprite_z + 2 * e->inst);
     }
+    s->nspr_game = s->nspr;
     s->sprite_count = DSW(DS_sprite_count);
     s->world_cell = DSW(DS_last_cell);
     s->world_tab = DSW(DS_last_octab);
@@ -257,6 +267,7 @@ void enh_frame_drawn(void)
     memcpy(s->ovpix, ov.pix, sizeof(u32) * (size_t)ov.npix);
     ov.ncmd = ov.npix = 0;
     memcpy(s->vbuf, vbuf_ptr(), sizeof s->vbuf);
+    enh_far_build(s);                                      /* the cells beyond the game's own */
 
     /* A continuous step: same kind of view, nothing jumped (restart, replay start, layout change). */
     EnhSnap *p = enh_prev;
@@ -378,6 +389,13 @@ static void view_compute(void)
     v->cam_z4 = out[1];
     v->heading = out[2];
     v->cam_y = out[3];
+    /* ENH: on a steep slope the game's own eye sinks to the surface and a frame or two below it (measured on a
+     * 21-degree slope: 6 units above, then 6 below; about 46 on the flat), and the view showed the underside of
+     * the slope. The eye is kept ENH_EYE_CLEAR over the game's ground under it (not a bridge deck overhead). */
+    if (!compare_on() && !c->menu_preview) {
+        double g = enh_ground_height(c, v->cam_x4, v->cam_z4, v->cam_y, ENH_EYE_CLEAR + 64);
+        if (v->cam_y < g + ENH_EYE_CLEAR) v->cam_y = g + ENH_EYE_CLEAR;
+    }
     /* The game's pitch (horizon row) bobs by up to 20 rows from one frame to the next over bumps and while
      * steering; a short low-pass (ENH_PITCH_SMOOTH_MS) takes the edge off without delaying anything else. */
     static double f_row, f_pitch;
@@ -400,6 +418,11 @@ static void view_compute(void)
         v->vx[i] = c->vx[i];
         v->vy[i] = c->vy[i];
         v->vz[i] = c->vz[i];
+    }
+    for (int i = 0; i < c->nfv; i++) {                     /* the far ring: static */
+        v->vx[c->nv + i] = c->fvx[i];
+        v->vy[c->nv + i] = c->fvy[i];
+        v->vz[c->nv + i] = c->fvz[i];
     }
     /* moving vehicles: carried to the view time and turned to their exact heading (the model is built at
      * the high byte of the heading) */

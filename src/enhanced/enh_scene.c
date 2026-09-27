@@ -22,15 +22,16 @@ static double W32;                               /* view width * 32 (DS:BA95 + 2
 static double CX32;                              /* view centre, 1/32 px (DS:BA97) */
 static double VROWS;                             /* view rows */
 
-static double sx[ENH_MAX_VERTS];                 /* bearing on screen, [0, 65536) (sx[] of 394c) */
-static double vdist[ENH_MAX_VERTS];              /* horizontal distance (dist[]) */
-static double fy[ENH_MAX_VERTS];                 /* front row (sy[] of 39fd) */
-static double my[ENH_MAX_VERTS];                 /* mirror row (my[] of 8b5f) */
+static int NV;                                   /* vertices: the game's, then the far ring's */
+static double sx[ENH_MAX_ALL_VERTS];             /* bearing on screen, [0, 65536) (sx[] of 394c) */
+static double vdist[ENH_MAX_ALL_VERTS];          /* horizontal distance (dist[]) */
+static double fy[ENH_MAX_ALL_VERTS];             /* front row (sy[] of 39fd) */
+static double my[ENH_MAX_ALL_VERTS];             /* mirror row (my[] of 8b5f) */
 static double fkey[ENH_MAX_FACES];
 static int    forder[ENH_MAX_FACES];
 
 typedef struct { int k; double key, angle, dist, ydist; } SprItem;
-static SprItem sprs[ENH_MAX_SPRITES];
+static SprItem sprs[ENH_MAX_SPRITES_ALL];
 
 static inline double wrapu(double a)             /* to [0, 65536) */
 {
@@ -54,7 +55,7 @@ static inline double elev(double dy, double dist) { return atan2(dy, dist < 1e-3
 static void project(void)
 {
     double base = (double)(S->cx_hi << 8) - V->heading;
-    for (int v = 0; v < S->nv; v++) {
+    for (int v = 0; v < NV; v++) {
         double dx = wraps(V->vx[v] - V->cam_x4), dz = wraps(V->vz[v] - V->cam_z4);
         double d = sqrt(dx * dx + dz * dz);
         sx[v] = wrapu(atan2(dx, dz) * RAD2A + base);
@@ -67,19 +68,53 @@ static void project(void)
 
 static double depth(int v) { return fabs(V->vy[v] - V->cam_y) + vdist[v]; }
 
+/* ENH: the height of the game's ground under the point (x4, z4): the highest plane, at that point, of the
+ * snapshot's triangles and quads that contain it (seen from above), not steeper than 1.5 and not more than
+ * `above` over y (a bridge deck over the camera is not its ground). -1e9 when there is none. */
+double enh_ground_height(const EnhSnap *s, double x4, double z4, double y, double above)
+{
+    double best = -1e9;
+    for (int f = 0; f < s->nf; f++) {
+        const u16 *r = s->face[f];
+        int n = (r[0] >> 14) + 1;
+        if (n < 3 || (r[3] >> 11) == 0) continue;                /* polygons, not the OR faces */
+        int v[4];
+        bool ok = true;
+        for (int k = 0; k < n; k++) { v[k] = r[k] & 0x7FF; if (v[k] >= s->nv) ok = false; }
+        if (!ok) continue;
+        for (int t = 0; t + 2 < n; t++) {                         /* the fan (0, 1 + t, 2 + t) */
+            int a = v[0], b = v[1 + t], c = v[2 + t];
+            double px[3] = { wraps(s->vx[a] - x4), wraps(s->vx[b] - x4), wraps(s->vx[c] - x4) };
+            double pz[3] = { wraps(s->vz[a] - z4), wraps(s->vz[b] - z4), wraps(s->vz[c] - z4) };
+            double py[3] = { s->vy[a], s->vy[b], s->vy[c] };
+            double c0 = px[0] * pz[1] - pz[0] * px[1], c1 = px[1] * pz[2] - pz[1] * px[2], c2 = px[2] * pz[0] - pz[2] * px[0];
+            if (!((c0 >= 0 && c1 >= 0 && c2 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0))) continue;
+            double ux = px[1] - px[0], uy = py[1] - py[0], uz = pz[1] - pz[0];
+            double wx = px[2] - px[0], wy = py[2] - py[0], wz = pz[2] - pz[0];
+            double nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+            if (fabs(ny) < 1e-6 || sqrt(nx * nx + nz * nz) > 1.5 * fabs(ny)) continue;   /* a wall */
+            double h = py[0] - (nx * -px[0] + nz * -pz[0]) / ny;
+            if (h <= y + above && h > best) best = h;
+        }
+    }
+    return best;
+}
+
 /* ------------------------------------------------------------------------------------------------------
  * Distance haze (ENH, after Play Stunts' distance colouring): what is far away takes on some of the sky's
- * colour at the horizon, from ENH_HAZE_NEAR to all of --haze at ENH_HAZE_FAR (depth-key units), smoothstep.
+ * colour at the horizon, from ENH_HAZE_NEAR to all of --haze at haze_far (depth-key units), smoothstep: the
+ * edge of the far ring when there is one (so that it fades out), else ENH_HAZE_FAR.
  * The ground takes it by its angle below the horizon, as seen from ENH_HAZE_EYE over flat ground.
  * ------------------------------------------------------------------------------------------------------ */
 
-static double haze_max;                          /* 0..255 at ENH_HAZE_FAR; 0 = off */
+static double haze_max;                          /* 0..255 at haze_far; 0 = off */
+static double haze_far;
 static u8 ground_haze[ENH_HAZE_ROWS];
 
 static u32 haze_amount(double d)
 {
     if (haze_max <= 0 || d <= ENH_HAZE_NEAR) return 0;
-    double x = (d - ENH_HAZE_NEAR) / (ENH_HAZE_FAR - ENH_HAZE_NEAR);
+    double x = (d - ENH_HAZE_NEAR) / (haze_far - ENH_HAZE_NEAR);
     if (x > 1) x = 1;
     return (u32)(x * x * (3 - 2 * x) * haze_max + 0.5);
 }
@@ -87,6 +122,7 @@ static u32 haze_amount(double d)
 static void haze_setup(void)
 {
     haze_max = S->menu_preview ? 0 : enh_haze * 2.55;
+    haze_far = S->nff > 0 ? enh_draw_dist * 0x1000 : ENH_HAZE_FAR;
     for (int i = 0; i < ENH_HAZE_ROWS; i++) {
         double a = (i + 0.5) / 32.0 / RAD2PX;              /* radians below the horizon */
         ground_haze[i] = (u8)haze_amount(ENH_HAZE_EYE + ENH_HAZE_EYE / tan(a));
@@ -104,9 +140,11 @@ u32 enh_haze_colour(const EnhSnap *s)
 
 static EnhTarget *T;                             /* the target being filled */
 
-/* what the polygons being added leave in the depth buffer (EnhPrim zmode): set per face by draw_face */
+/* what the polygons being added leave in the depth buffer (EnhPrim zmode): set per face by draw_face; while the
+ * far ring is drawn they write the far depth too, the game's faces after it are tested against that */
 static u8 z_mode = Z_NONE;
 static float z_plane[4], z_const;
+static bool z_far_write, z_far_test;
 
 static void poly(int n, const double *x32, const double *y, u32 value, bool or_mode)
 {
@@ -118,6 +156,8 @@ static void poly(int n, const double *x32, const double *y, u32 value, bool or_m
     p->zmode = or_mode ? Z_NONE : z_mode;
     p->nx = z_plane[0]; p->ny = z_plane[1]; p->nz = z_plane[2]; p->d = z_plane[3];
     p->zc = z_const;
+    p->zfar_write = z_far_write;
+    p->zfar_test = z_far_test;
     for (int i = 0; i < n; i++) {
         p->x[i] = (float)(x32[i] / 32.0 * K);
         p->y[i] = (float)(y[i] * K);
@@ -285,7 +325,10 @@ static void draw_triangle(const int *v)
     if (front_visible(3, v)) {
         T = &enh_front;
         if (has_big_gap(3, v)) front_poly(3, v);
-        else around_camera(v);
+        else if (!z_far_write) around_camera(v);
+        /* ENH: not a face of the far ring: the view runs up to a game frame behind, and just after the game moves
+         * to a new cell the view can still be in the old one, which the far ring then holds; filled around the
+         * camera its ground covered the sky or, as depth, hid what is near */
         return;
     }
     if (S->mirror_on && mirror_visible(3, v)) {
@@ -394,17 +437,15 @@ static void draw_point(int v0, u16 w0)
     poly(2 * N + 2, px, py, face_value, false);
 }
 
-static void draw_face(int f)
+/* a face from its record: the flag bits of w0 and w3, the colour pair, the vertices */
+static void draw_face_rec(u16 w0, u16 w3, u16 pair, int v0, int v1, int v2, int v3)
 {
-    const u16 *r = S->face[f];
-    u16 w0 = r[0], pair = r[4];
-    face_type = (u8)(r[3] >> 11);
+    face_type = (u8)(w3 >> 11);
     if (pair == 0x10F && (S->frame_counter & 1)) pair = (u16)(pair << 8 | pair >> 8);   /* blinking pair */
     face_or = face_type == 0;
     if (face_or && pair == 0x0707 && S->day) return;         /* OR faces: hidden by day */
     face_value = ENH_PAIR(pair);
-    int v0 = w0 & 0x7FF, v1 = r[1] & 0x7FF, v2 = r[2] & 0x7FF, v3 = r[3] & 0x7FF;
-    if (v0 >= S->nv || v1 >= S->nv) return;
+    if (v0 >= NV || v1 >= NV) return;
     /* ENH: haze by the average depth of the face's corners; not the headlight beams (they OR into what is
      * below) nor, at night, the lamps */
     int n = w0 >> 14;
@@ -412,7 +453,7 @@ static void draw_face(int f)
         int vs[4] = { v0, v1, v2, v3 }, m = n == 0 ? 1 : n + 1;
         double d = 0;
         int used = 0;
-        for (int k = 0; k < m; k++) if (vs[k] < S->nv) { d += depth(vs[k]); used++; }
+        for (int k = 0; k < m; k++) if (vs[k] < NV) { d += depth(vs[k]); used++; }
         face_value |= ENH_HAZE(haze_amount(d / used));
     }
     /* ENH: its depth for the sprites: polygons their plane, lamps and lines the distance of their nearest end */
@@ -421,7 +462,7 @@ static void draw_face(int f)
         double p[4][3];
         bool ok = true;
         for (int k = 0; k < m; k++) {
-            if (vs[k] >= S->nv) { ok = false; break; }
+            if (vs[k] >= NV) { ok = false; break; }
             p[k][0] = wraps(V->vx[vs[k]] - V->cam_x4);
             p[k][1] = V->vy[vs[k]] - V->cam_y;
             p[k][2] = wraps(V->vz[vs[k]] - V->cam_z4);
@@ -451,18 +492,24 @@ static void draw_face(int f)
     case 0: draw_point(v0, w0); break;
     case 1: draw_line(v1, v0, w0); break;                     /* line_draw(bx = v1, si = v0) */
     case 2: {
-        if (v2 >= S->nv) return;
+        if (v2 >= NV) return;
         int v[3] = { v0, v1, v2 };
         draw_triangle(v);
         break;
     }
     default: {
-        if (v2 >= S->nv || v3 >= S->nv) return;
+        if (v2 >= NV || v3 >= NV) return;
         int v[4] = { v0, v1, v2, v3 };
         draw_quad(v);
         break;
     }
     }
+}
+
+static void draw_face(int f)
+{
+    const u16 *r = S->face[f];
+    draw_face_rec(r[0], r[3], r[4], r[0] & 0x7FF, r[1] & 0x7FF, r[2] & 0x7FF, r[3] & 0x7FF);
 }
 
 /* 361c: the depth key of a face */
@@ -472,12 +519,12 @@ static double face_key(int f)
     u16 w0 = r[0];
     int n = w0 >> 14;
     int v0 = w0 & 0x7FF, v1 = r[1] & 0x7FF, v2 = r[2] & 0x7FF, v3 = r[3] & 0x7FF;
-    if (v0 >= S->nv) return 0;
+    if (v0 >= NV) return 0;
     double d0 = depth(v0);
     if (n == 0) return d0;
-    double d1 = v1 < S->nv ? depth(v1) : d0;
-    double d2 = n >= 2 && v2 < S->nv ? depth(v2) : d0;
-    double d3 = n == 3 && v3 < S->nv ? depth(v3) : d0;
+    double d1 = v1 < NV ? depth(v1) : d0;
+    double d2 = n >= 2 && v2 < NV ? depth(v2) : d0;
+    double d3 = n == 3 && v3 < NV ? depth(v3) : d0;
     if (w0 & 0x2000) {                                       /* the farthest vertex */
         double k = fmax(d0, d1);
         if (n >= 2) k = fmax(k, d2);
@@ -523,7 +570,8 @@ static void draw_sprite(const SprItem *it)
         mirror = true;
     }
     if (key <= 0x10) return;
-    if (cl > 5) { if (key >= S->spr_far_limit) return; }
+    /* ENH: with the far ring the sprites reach as far as it does, not the detail level's B6E2 */
+    if (cl > 5) { if (key >= (S->nff > 0 ? enh_draw_dist * 0x1000 : S->spr_far_limit)) return; }
     else if (cl <= 3 && (cl & 1)) { if (key >= 0x980) return; }
 
     u8 s = e->id & 0x3F;
@@ -653,6 +701,7 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     m.mirror = true;
     enh_mirror.map = m;
 
+    NV = s->nv + s->nfv;
     project();
     haze_setup();
     sky_ground();
@@ -683,7 +732,17 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
      * all the faces (which leave their depth in the targets), then the other sprites farthest first, each shown
      * only where it is nearer than the surface already there (ENHANCED.md "Sprites") */
     for (int k = 0; k < ns; k++) if (sky_sprite(&sprs[k])) draw_sprite(&sprs[k]);
+    /* ENH: the far ring first, farthest first, writing the far depth; then the game's faces where they are
+     * nearer than it (ENHANCED.md "Draw distance") */
+    z_far_write = true;
+    for (int i = 0; i < s->nff; i++) {
+        const EnhFarFace *e = &s->ff[i];
+        draw_face_rec(e->w0, e->w3, e->pair, e->v[0], e->v[1], e->v[2], e->v[3]);
+    }
+    z_far_write = false;
+    z_far_test = s->nff > 0;
     for (int fi = 0; fi < s->nf; fi++) draw_face(forder[fi]);
+    z_far_test = false;
     for (int k = 0; k < ns; k++) if (!sky_sprite(&sprs[k])) draw_sprite(&sprs[k]);
     z_mode = Z_NONE;                                         /* the cockpit overlays */
     overlays();

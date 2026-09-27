@@ -37,6 +37,8 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
     but overshoot and pull back when the steering changes. Stored as `Motion` in `settings.ini`.
   * **Haze** (`--haze`): distance haze, what is far away takes on some of the sky's colour at the horizon:
     *Normal* (default, 30), *Light* (15), *Strong* (50) or *Off* (0). Stored as `Haze` in `settings.ini`.
+  * **Draw distance** (`--draw-distance`): how far the scenery reaches: *Far* (default, 7 cells around the
+    camera), *Medium* (5) or *Original* (0, the game's own cells). Stored as `DrawDistance` in `settings.ini`.
 * **Keys in the game**: a reminder of the game's keys.
 * **Play** starts the game; the launcher stays open. **About**: version, author and links.
 

@@ -505,6 +505,37 @@ static double wheel_f;                                /* the wheel with its frac
 static double hold_f;                                 /* the hold count with its fraction (0..2) */
 static u8 hold_stored;                                /* the whole count last stored in DS_steer_hold */
 
+/* ENH: the last frame's share of the faithful port's (ticks / STEER_TICKS, bounded) */
+static double steer_k(void)
+{
+    double k = DSB(DS_frame_ticks) / STEER_TICKS;
+    if (k < 5 / STEER_TICKS) k = 5 / STEER_TICKS;
+    if (k > 2.0) k = 2.0;
+    return k;
+}
+
+/* ENH: the wheel with its fraction, unless something else moved it (then its whole value) */
+static double wheel_now(void)
+{
+    u8 al = DSB(DS_steer_wheel);
+    return wheel_f > al - 1.0 && wheel_f < al + 1.0 ? wheel_f : al;
+}
+
+/* ENH: wheel self-centring (C), replacing the original's in race_input: that moved the wheel 2 a read on even
+ * frames only (6, then 0), snapped 0Eh..12h to the centre and ran whenever the hold count was 0, which the
+ * fractional hold count leaves at 0 for the first read of a press. This one moves it the same 3 a frame on
+ * average, spread evenly over the reads and paced by the frame's length, and only while no steering key is
+ * held. */
+void steer_centre(void)
+{
+    double w = wheel_now(), k = steer_k();
+    if (DSB(DS_prev_bits) & 0x0C) return;
+    if (w < 0x10) { w += k; if (w > 0x10) w = 0x10; }
+    else if (w > 0x10) { w -= k; if (w < 0x10) w = 0x10; }
+    wheel_f = w;
+    DSB(DS_steer_wheel) = (u8)(w + 0.5);
+}
+
 /* 0e12:09d6 steer_throttle — simulation.md §4.4 (CL = bits) */
 static void steer_throttle(u8 cl)
 {
@@ -533,15 +564,13 @@ static void steer_throttle(u8 cl)
         return;
     }
     /* ENH: the frame's share of the faithful port's; bl, the hold count + 1, grows by that share a read */
-    double k = DSB(DS_frame_ticks) / STEER_TICKS;
-    if (k < 5 / STEER_TICKS) k = 5 / STEER_TICKS;
-    if (k > 2.0) k = 2.0;
+    double k = steer_k();
     if (DSB(DS_steer_hold) != hold_stored) hold_f = DSB(DS_steer_hold);   /* set elsewhere (replay, mouse) */
     bl = (u8)(1 + (int)hold_f);
     hold_f += k;
     if (hold_f > 2) hold_f = 2;
     DSB(DS_steer_hold) = hold_stored = (u8)hold_f;
-    double w = wheel_f > al - 1.0 && wheel_f < al + 1.0 ? wheel_f : al;   /* moved by anything else: its value */
+    double w = wheel_now();
     cl &= 0x0C;
     if (cl == 0x0C) {                                         /* both: towards the centre */
         if (w < 0x10) { w += bl * k; if (w > 0x10) w = 0x10; }

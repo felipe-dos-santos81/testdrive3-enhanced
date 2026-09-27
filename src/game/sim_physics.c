@@ -4,6 +4,10 @@
  * from the car .LST file (descriptions.md). The MSC long helpers (_aFlmul, _aFldiv, _aFuldiv, _aFNaldiv)
  * are modelled by the small inline functions below; a zero divisor faults like the runtime (R6003). */
 #include "game/game.h"
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 /* ---- car constants (descriptions.md, "car[0xNNNN]") ---- */
 #define CAR(o)      DSS(o)                    /* signed word at DS:o */
@@ -34,6 +38,8 @@ static inline s16 sgn_shr(s16 v, int n)
     return (s16)((a ^ d) - d);
 }
 static inline s16 abs16(s16 v) { return (s16)(v < 0 ? -v : v); }
+
+u16 sim_fine_heading;                                    /* ENH (sim.h) */
 
 /* 0977:0008 car_physics — simulation.md §4.2 (compiled C; checked against the disassembly line by line) */
 void car_physics(void)
@@ -85,6 +91,7 @@ void car_physics(void)
     }
 
     DSW(DS_view_heading) = DSW(DS_body_heading) & 0xFFC0;
+    sim_fine_heading = DSW(DS_body_heading);                  /* ENH: the same heading, unrounded */
     ang = DSW(DS_course) & 0xFC00;
     DSL(DS_y_before) = DSL(DS_pos_y);
 
@@ -96,11 +103,16 @@ void car_physics(void)
     }
 
     /* 6. velocity vector */
+    /* ENH: the original moves the car along the course rounded to 1/64 of a turn (ang above), so a curve is
+     * driven as straight runs with 5.6-degree kinks; the full course is used instead, with an exact sine */
+    ang = DSW(DS_course);
     t = (s16)ldiv32(DSSL(DS_speed_long), 16);
     if (DSSL(DS_speed_long) < 0) { ang = (u16)(ang + 0x8000); t = (s16)-t; }
-    polar(ang, (u16)t);
-    DSSL(DS_vel_x) = DSS(0x9460);                       /* sin_out */
-    DSSL(DS_vel_z) = DSS(0x9462);                       /* cos_out */
+    {
+        double r = ang * (2.0 * M_PI / 65536.0), len = (u16)t;
+        DSSL(DS_vel_x) = (s16)(s32)(len * sin(r));       /* polar's sin_out */
+        DSSL(DS_vel_z) = (s16)(s32)(len * cos(r));       /* polar's cos_out */
+    }
     if (DSB(DS_crashed)) { DSSL(DS_vel_y) = 0; DSSL(DS_vel_z) = 0; DSSL(DS_vel_x) = 0; }
 
     /* 7. speed magnitude */
@@ -172,7 +184,7 @@ void car_physics(void)
             if (pen >= (s32)(s16)((s16)(0x12 - DSW(DS_skill_level)) * u)) landing_damage();
         }
         if (DSSL(DS_vel_y) >= 0) DSSL(DS_vel_y) += ldiv32(floor_ - DSSL(DS_pos_y), 8);
-        else                     DSSL(DS_vel_y) = ldiv32((s32)(0u - DSL(DS_vel_y)), 8);
+        else                    DSSL(DS_vel_y) = ldiv32((s32)(0u - DSL(DS_vel_y)), 8);
         DSSL(DS_pos_y) = (s32)((u32)floor_ + 1);
     }
 
@@ -346,12 +358,23 @@ void car_physics(void)
     else if (DSB(DS_damage) & 2) t = (s16)(t - 4);
     DSB(DS_speedo_step) = (DSSL(DS_speed_long) >= 0) ? (u8)(DSW(DS_car_speed) >> 2) : 0;
     {
-        u16 x = (u16)((u16)(DSB(DS_frame_ticks) + 0x11) * CARU(0x1222));
+        /* ENH: the original turns by (ticks + 11h) a frame, not in proportion to the frame's length: a frame
+         * that ran a tick or two late turned less per tick than its neighbours, a visible slow-down every few
+         * frames in a steady turn. The frame's ticks are scaled so the turn keeps its rate per tick; a frame
+         * of the configured length turns exactly as before. */
+        double nom = host_frame_ticks(), ft = DSB(DS_frame_ticks);
+        if (ft > 2.0 * nom) ft = 2.0 * nom;
+        u16 x = (u16)(u32)((nom + 0x11) * ft / nom * CARU(0x1222) + 0.5);
         x = (u16)(x * 7);
         m = (s16)ldiv32(lmul(lmul(x, t), 0x50), (s16)(0x2B8 * CAR(0x1224)));
         m = (s16)ldiv32(lmul((s16)((s16)(3 * DSC(DS_steering_response)) + 0x10), m), 0x24);
         if (DSW(DS_car_speed) < 0x0C) m = (s16)ldiv32(lmul(m, DSW(DS_car_speed)), 0x0C);
-        if (DSB(DS_steer_wheel) == 0x20 || DSB(DS_steer_wheel) == 0) m = (s16)(m << 1);
+        /* ENH: the original doubles the turn at full lock only (wheel 0 or 20h), a sudden second stage to every
+         * held turn; the same doubling is reached gradually over the last 4 wheel steps */
+        {
+            s16 w = abs16((s16)(DSB(DS_steer_wheel) * 2 - 0x20));
+            if (w > 0x18) m = (s16)ldiv32(lmul(m, 8 + (w - 0x18)), 8);
+        }
     }
     if (DSB(DS_on_ground) && DSSL(DS_speed_long) != 0) {
         s16 d, ad, m1, m2;

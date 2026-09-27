@@ -734,13 +734,15 @@ void crossing_gate_update(void)
     if (DSW(DS_gate_slot2) != 0xFFFF) crossing_gate_arm_place(DSW(DS_gate_slot2));
 }
 
-/* ENH: the police car in slot bx is ahead of the player (in front of the line across the car). Positions wrap
- * at 8000h (x) and 4000h (z); the view heading's forward direction is (sin, cos) in (x, z). */
-static bool police_ahead(u16 bx)
+/* ENH: the police car in slot bx is ahead of the car in slot si (in front of the line across that car).
+ * Positions wrap at 8000h (x) and 4000h (z); a heading's forward direction is (sin, cos) in (x, z) in the view's
+ * convention, which is the objects' heading + 4000h (sim_physics.c: obj_heading = view_heading - 4000h). */
+static bool police_ahead(u16 bx, u16 si)
 {
-    double dx = (s16)(u16)((u16)(OW(DS_obj_x, bx) - DSW(DS_obj_x)) << 1) >> 1;
-    double dz = (s16)(u16)((u16)(OW(DS_obj_z, bx) - DSW(DS_obj_z)) << 2) >> 2;
-    double h = DSW(DS_view_heading) * (2.0 * M_PI / 65536.0);
+    double dx = (s16)(u16)((u16)(OW(DS_obj_x, bx) - OW(DS_obj_x, si)) << 1) >> 1;
+    double dz = (s16)(u16)((u16)(OW(DS_obj_z, bx) - OW(DS_obj_z, si)) << 2) >> 2;
+    u16 hv = si == 0 ? DSW(DS_view_heading) : (u16)(OW(DS_obj_heading, si) + 0x4000);
+    double h = hv * (2.0 * M_PI / 65536.0);
     return dx * sin(h) + dz * cos(h) > 0;
 }
 
@@ -783,6 +785,7 @@ void police_update(void)
                     if (a >= 0xD8) continue;
                     if ((s8)(u8)((u8)(OB(DS_obj_heading, (u16)(bx + 1)) - OB(DS_obj_heading, (u16)(si + 1))) + 0x40) < 0)
                         continue;
+                    if (police_ahead(bx, si)) continue;             /* ENH: only once it has overtaken the police */
                     DSB((u16)(DS_tickets + (si >> 1)))++;
                     DSB(DS_sky_flash) = 3;
                     DSB(DS_flash_msg) = 0x2C;                   /* "Your opponent got a ticket" */
@@ -806,7 +809,7 @@ void police_update(void)
                      * once the player has overtaken it; oncoming and parked ones as before. */
                     else if ((OW(DS_obj_waypoint, bx) & 0xFFC0)
                              && (s8)(u8)((u8)((u16)(OW(DS_obj_heading, bx) - DSW(DS_obj_heading)) >> 8) - 0x40) < 0
-                             && police_ahead(bx))
+                             && police_ahead(bx, 0))
                         close = 0;
                     else {
                         OW(DS_obj_flags, bx) = (u16)(dx | 0x40C0);   /* chase at speed class 3 */
