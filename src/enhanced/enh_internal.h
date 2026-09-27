@@ -144,6 +144,11 @@ void enh_sprites_capture(void);
  * size a (8-pixel units, continuous). Returns false if nothing is drawn. */
 bool enh_sprite_pick(u8 s, double a, const EnhSprImg **img, double *w, double *h);
 
+/* the aeroplane: sprite 2 with a drift bit (SCENE01's; world.md "Sprites"), drawn smaller and flown slower */
+#define ENH_PLANE_SIZE  0.25                     /* of its size */
+#define ENH_PLANE_SPEED 0.2                      /* of the leg's drift a frame */
+static inline bool enh_is_plane(u16 id) { return (id & 0x3F) == 2 && (id & 0xC0) != 0; }
+
 /* ---- rasterising (enh_raster.c) ---- */
 
 /* A sample holds a colour pair, the weight of its high colour and its distance haze:

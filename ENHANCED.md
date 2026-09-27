@@ -295,14 +295,27 @@ the car reacted to keys held up to a whole frame (158 ms) earlier. `ENH:` the fi
 one right before the physics. Measured: the steering wheel moves in the first frame after the key instead of the
 second. (The game's own steering still builds up over about three frames.)
 
-Keyboard steering (`steer_throttle`) is the original's: the wheel (0..20h, centre 10h) moves by 1, 2, then 3
-a read (the hold count), 1 more far out when turning back, stops at the centre on a counter-turn; the turn
-doubles at full lock (`sim_physics.c`, step 18). Its steps are per control read, three a frame, so at a faster
-game speed the wheel swings faster in real time (23/14 times at the default 14 ticks). `ENH:` each read's step
-and the hold count's growth are scaled by the last frame's ticks / 23 (`STEER_TICKS`, the faithful port's
-pacing), the wheel keeping its fraction between reads: the same pace in seconds as the faithful port at any
-`--frame-ticks`, and exactly the original at 23. Measured: full lock 0.28 s after the key at 14 ticks, 0.32 s
-at 23 (frame granularity). Nothing else is tuned; the mouse and joystick are the original's.
+## Steering
+
+The original's keyboard steering stepped the wheel (0..20h) by 1..3 per control read and the car turned by
+those steps, rounded further on the way (the course to 1/64 of a turn, the camera heading to 64 units, a
+doubled turn on the last wheel step only, centring 6 then 0 on alternate frames). Its jitter hid that; in the
+smooth view every step showed. `ENH:` rewritten for a smooth turn from a nudge to a hard turn, as in TD2
+Enhanced:
+
+* **Wheel** (`steer_frame`, `sim_controls.c`, once per game frame): a continuous position `steer_pos`
+  (-1..1). A key swings it towards its lock at a rate falling with speed (centre to lock 0.28 s standing,
+  0.9 s at car speed 60h and above), easing in from 45 % over the first 0.25 s, so a tap gives a small angle;
+  turning back through the centre goes 2.5 times as fast. Without a key (both keys, or wheel centring on and
+  the car moving) it returns to the centre with a 0.15 s time constant. `DS_steer_wheel` follows it for the
+  HUD. The mouse and the analog stick set the wheel themselves, as before.
+* **Turn** (`sim_physics.c`, step 18): the original's formula in fractions, with the response curve
+  `p (1 + |p|^3)` (linear near the centre, the original's doubled turn at full lock), in proportion to the
+  frame's length, followed by the turn rate with a 0.1 s time constant; the heading keeps its fraction
+  (`sim_fine_heading`), which the smooth view uses instead of the rounded camera heading.
+* **Kept:** the handbrake (Space multiplies the turn by the car's `123Ah / 123Ch`), crosswind, the pull of
+  a damaged car, the slow-speed fade, the sensitivity setting (F3), and the grip / slide limits that make the
+  car spin and slide. The car moves along its whole course (`sim_physics.c`, step 6).
 
 ## Finish marker
 

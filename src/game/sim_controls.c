@@ -5,6 +5,7 @@
  * (F1-F10). key_dispatch reads the stored offset and calls the registered C function through
  * codeptr_lookup_near(0x0E12, off). Register-argument routines take the register as a parameter. */
 #include "game/game.h"
+#include <math.h>
 
 static void controls_poll(void);
 static u8   mouse_controls(u8 cl);
@@ -494,52 +495,64 @@ static u8 mouse_controls(u8 cl)
     return cl;
 }
 
-/* ENH: the original's keyboard steering, paced by the frame's length. It moves the wheel (0..20h, centre 10h) by
- * 1, 2, then 3 per control read (the hold count), 1 more far out when turning back, three reads a frame: made
- * for the faithful port's 23 ticks a frame, it swings the wheel 23/14 times as fast in real time at the default
- * 14. Each read's step and the growth of the hold count are scaled by the last frame's ticks / STEER_TICKS, the
- * wheel keeping its fraction between reads; at 23 ticks every read is the original's. */
-#define STEER_TICKS 23.0
+/* ENH: keyboard steering rewritten for the smooth view (ENHANCED.md "Steering"). The original steps the wheel
+ * (0..20h, centre 10h) by 1..3 per control read, three reads a frame, and the turn follows those steps; in a view
+ * interpolated between frames every step shows. Here the wheel is a continuous position (steer_pos, -1..1),
+ * moved once per game frame by the frame's length in seconds: a key swings it towards its lock at a rate that
+ * falls with speed and eases in over the first quarter second (a tap gives a small angle, a hold a hard turn),
+ * turning back through the centre goes 2.5 times as fast, and without a key (both keys, or with wheel centring
+ * on and the car moving) it returns to the centre with a 0.15 s time constant. DS_steer_wheel follows it (the
+ * HUD, the mouse, the analog stick and the rest of the game read or set that). The mouse and the analog stick
+ * set the wheel themselves; car_physics then takes it as it is. */
+double steer_pos;                                     /* the continuous wheel, -1 (lock 0) .. 1 (lock 20h) */
+static double steer_held;                             /* seconds the current steering key has been held */
 
-static double wheel_f;                                /* the wheel with its fraction */
-static double hold_f;                                 /* the hold count with its fraction (0..2) */
-static u8 hold_stored;                                /* the whole count last stored in DS_steer_hold */
+#define STEER_TICK_S ((double)PIT_DIV_GAME / PIT_HZ)
 
-/* ENH: the last frame's share of the faithful port's (ticks / STEER_TICKS, bounded) */
-static double steer_k(void)
+static bool steer_analog(void)
 {
-    double k = DSB(DS_frame_ticks) / STEER_TICKS;
-    if (k < 5 / STEER_TICKS) k = 5 / STEER_TICKS;
-    if (k > 2.0) k = 2.0;
-    return k;
+    return DSB(DS_mouse_on) != 0 || (DSW(DS_joystick_on) != 0 && DSB(DS_joy_analog) != 0);
 }
 
-/* ENH: the wheel with its fraction, unless something else moved it (then its whole value) */
-static double wheel_now(void)
+/* once per game frame, before car_physics' steering (sim.h) */
+void steer_frame(void)
 {
-    u8 al = DSB(DS_steer_wheel);
-    return wheel_f > al - 1.0 && wheel_f < al + 1.0 ? wheel_f : al;
-}
-
-/* ENH: wheel self-centring (C), replacing the original's in race_input: that moved the wheel 2 a read on even
- * frames only (6, then 0), snapped 0Eh..12h to the centre and ran whenever the hold count was 0, which the
- * fractional hold count leaves at 0 for the first read of a press. This one moves it the same 3 a frame on
- * average, spread evenly over the reads and paced by the frame's length, and only while no steering key is
- * held. */
-void steer_centre(void)
-{
-    double w = wheel_now(), k = steer_k();
-    if (DSB(DS_prev_bits) & 0x0C) return;
-    if (w < 0x10) { w += k; if (w > 0x10) w = 0x10; }
-    else if (w > 0x10) { w -= k; if (w < 0x10) w = 0x10; }
-    wheel_f = w;
-    DSB(DS_steer_wheel) = (u8)(w + 0.5);
+    u8 w = DSB(DS_steer_wheel);
+    if (steer_analog() || (u8)lround(0x10 + 0x10 * steer_pos) != w) {   /* set elsewhere: take its value */
+        steer_pos = (w - 0x10) / 16.0;
+        if (steer_pos > 1) steer_pos = 1;
+        if (steer_pos < -1) steer_pos = -1;
+        if (steer_analog()) return;
+    }
+    double dt = DSB(DS_frame_ticks) * STEER_TICK_S;
+    if (dt < 0.01) dt = 0.01;
+    if (dt > 0.25) dt = 0.25;
+    double spd = DSW(DS_car_speed) / 96.0;
+    if (spd > 1) spd = 1;
+    double rate = 1.0 / (0.28 + 0.62 * spd);          /* centre to lock: 0.28 s standing, 0.9 s flat out */
+    u8 k = (u8)(DSB(DS_prev_bits) & 0x0C);
+    if (k == 4 || k == 8) {
+        double dir = k == 8 ? 1.0 : -1.0;
+        steer_held += dt;
+        double ease = steer_held >= 0.25 ? 1.0 : 0.45 + 0.55 * steer_held / 0.25;
+        double r = rate * ease;
+        if (steer_pos * dir < 0) r = rate * 2.5;      /* turning back through the centre */
+        steer_pos += dir * r * dt;
+        if (steer_pos > 1) steer_pos = 1;
+        if (steer_pos < -1) steer_pos = -1;
+    } else {
+        steer_held = 0;
+        if (k == 0x0C || (DSB(DS_wheel_centring) != 0 && DSSL(DS_speed_long) != 0)) {
+            steer_pos *= exp(-dt / 0.15);
+            if (fabs(steer_pos) < 0.01) steer_pos = 0;
+        }
+    }
+    DSB(DS_steer_wheel) = (u8)lround(0x10 + 0x10 * steer_pos);
 }
 
 /* 0e12:09d6 steer_throttle — simulation.md §4.4 (CL = bits) */
 static void steer_throttle(u8 cl)
 {
-    u8 al, ah, bl;
     if (cl & 3) {
         if (cl & 1) {
             if (DSB(DS_throttle) < 0x1E) {
@@ -554,42 +567,13 @@ static void steer_throttle(u8 cl)
             DSB(DS_throttle) = ch;
         }
     }
-    al = DSB(DS_steer_wheel);
-    ah = al;
     if (!(cl & 0x0C)) {
-        DSB(DS_steer_hold) = hold_stored = 0;
-        hold_f = 0;                                                   /* ENH */
+        DSB(DS_steer_hold) = 0;
         if (DSW(DS_joystick_on) != 0 && DSB(DS_joy_analog) != 0 && DSB(DS_mouse_on) == 0)
             DSB(DS_steer_wheel) = 0x10;
         return;
     }
-    /* ENH: the frame's share of the faithful port's; bl, the hold count + 1, grows by that share a read */
-    double k = steer_k();
-    if (DSB(DS_steer_hold) != hold_stored) hold_f = DSB(DS_steer_hold);   /* set elsewhere (replay, mouse) */
-    bl = (u8)(1 + (int)hold_f);
-    hold_f += k;
-    if (hold_f > 2) hold_f = 2;
-    DSB(DS_steer_hold) = hold_stored = (u8)hold_f;
-    double w = wheel_now();
-    cl &= 0x0C;
-    if (cl == 0x0C) {                                         /* both: towards the centre */
-        if (w < 0x10) { w += bl * k; if (w > 0x10) w = 0x10; }
-        else if (w > 0x10) { w -= bl * k; if (w < 0x10) w = 0x10; }
-    } else {
-        if (cl & 8) {
-            w += (bl + (w < 0x0A ? 1 : 0)) * k;
-            if (w > 0x20) w = 0x20;
-            if (w >= 0x10 && ah < 0x10) { DSB(DS_steer_hold) = hold_stored = 0; hold_f = 0; w = 0x10; }
-        }
-        if (cl & 4) {
-            w -= (bl + (w > 0x16 ? 1 : 0)) * k;
-            if (w < 0) w = 0;
-            if (w <= 0x10 && ah > 0x10) { DSB(DS_steer_hold) = hold_stored = 0; hold_f = 0; w = 0x10; }
-        }
-    }
-    wheel_f = w;
-    al = (u8)(w + 0.5);
-    DSB(DS_steer_wheel) = al;
+    DSB(DS_steer_hold) = 1;                           /* ENH: the wheel itself moves in steer_frame */
     if (DSW(DS_joystick_on) == 0 || DSB(DS_joy_analog) == 0) return;
     {                                                         /* analog stick overrides */
         u16 bx = DSW(DS_joy_xcentre), ax = (u16)(DSW(DS_joy_x) - bx);

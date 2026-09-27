@@ -182,9 +182,9 @@ void enh_frame_drawn(void)
      * to 64 in a steady turn and the view sped up and slowed down every few frames. The unrounded heading the
      * rounding came from is taken while it still matches (not in the chase view or a replay's own camera). */
     {
-        extern u16 sim_fine_heading;
-        if (!s->ext_view && (u16)(sim_fine_heading & 0xFFC0) == (u16)DSW(DS_cam_heading))
-            s->heading = sim_fine_heading;
+        extern double sim_view_heading;
+        u16 h = (u16)floor(sim_view_heading);
+        if (!s->ext_view && (u16)(h & 0xFFC0) == (u16)DSW(DS_cam_heading)) s->heading = sim_view_heading;
     }
     s->cam_y = DSS(DS_cam_y_949E);
     s->cam_row = DSS(DS_cam_row);

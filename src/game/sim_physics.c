@@ -39,13 +39,22 @@ static inline s16 sgn_shr(s16 v, int n)
 }
 static inline s16 abs16(s16 v) { return (s16)(v < 0 ? -v : v); }
 
-u16 sim_fine_heading;                                    /* ENH (sim.h) */
+double sim_fine_heading;                                 /* ENH (sim.h): the body heading with its fraction */
+double sim_view_heading;                                 /* ENH (sim.h): the same when view_heading was set */
+
+/* ENH: the wheel car_physics steers by, -1 .. 1: the keyboard's continuous one, or the mouse's / stick's wheel */
+static double steer_analog_pos(void)
+{
+    if (DSB(DS_mouse_on) != 0 || (DSW(DS_joystick_on) != 0 && DSB(DS_joy_analog) != 0))
+        return (DSB(DS_steer_wheel) - 0x10) / 16.0;
+    return steer_pos;
+}
 
 /* 0977:0008 car_physics — simulation.md §4.2 (compiled C; checked against the disassembly line by line) */
 void car_physics(void)
 {
     s16 squeal = 0;                                          /* bp-8 */
-    s16 t, a, old, lim_slide, lim_grip, m;
+    s16 t, a, old, lim_slide, lim_grip;
     u16 ang, ax_, bz_;
     s32 floor_;
     int i;
@@ -91,7 +100,8 @@ void car_physics(void)
     }
 
     DSW(DS_view_heading) = DSW(DS_body_heading) & 0xFFC0;
-    sim_fine_heading = DSW(DS_body_heading);                  /* ENH: the same heading, unrounded */
+    if ((u16)floor(sim_fine_heading) != DSW(DS_body_heading)) sim_fine_heading = DSW(DS_body_heading);   /* ENH */
+    sim_view_heading = sim_fine_heading;                      /* ENH: view_heading's, with its fraction */
     ang = DSW(DS_course) & 0xFC00;
     DSL(DS_y_before) = DSL(DS_pos_y);
 
@@ -142,6 +152,11 @@ void car_physics(void)
 
     /* 10. ground contact */
     floor_ = (s32)((u32)(s32)DSS(DS_ground_height) << 7);
+    /* ENH: how far the ground under the car fell since the last frame (0 when it rose), for the landing test */
+    static s32 floor_prev;
+    s32 ground_drop = floor_prev - floor_;
+    floor_prev = floor_;
+    if (ground_drop < 0) ground_drop = 0;
     DSB(DS_on_ground) = 1;
     if (floor_ < DSSL(DS_pos_y)) {
         s32 lim = (s16)(DSW(DS_leg_gravity) * 4);
@@ -171,7 +186,11 @@ void car_physics(void)
         else
             DSS(DS_pitch_rate) = DSS(DS_ground_pitch);
         u = sgn_shr(DSS(0x94BD) /* car_impact */, 4);
-        pen = floor_ - DSSL(DS_pos_y) - DSSL(DS_vel_y);
+        /* ENH: the impact is the fall less the ground's own fall under the car this frame (at most the whole fall
+         * speed): the original takes the whole fall, so landing along the downslope after a crest, the car
+         * matching the ground, counted as a drop onto the flat and crashed or broke the car. Never harsher. */
+        s32 soften = DSSL(DS_vel_y) < 0 ? (ground_drop < -DSSL(DS_vel_y) ? ground_drop : -DSSL(DS_vel_y)) : 0;
+        pen = floor_ - DSSL(DS_pos_y) - DSSL(DS_vel_y) - soften;
         if (pen >= (s32)(s16)(u * 5)) sfx_play(0x13);
         u = sgn_shr(DSS(0x94BD), 4);
         if (pen >= (s32)(s16)((s16)(0x24 - (s16)(DSW(DS_skill_level) << 1)) * u)) {
@@ -180,7 +199,7 @@ void car_physics(void)
             DSW(DS_sprite_y) = (u16)((u16)(DSL(DS_pos_y) >> 7) + DSW(DS_car_eye_height) - 0x10);
         } else {
             u = sgn_shr(DSS(0x94BD), 4);
-            pen = floor_ - DSSL(DS_pos_y) - DSSL(DS_vel_y);
+            pen = floor_ - DSSL(DS_pos_y) - DSSL(DS_vel_y) - soften;
             if (pen >= (s32)(s16)((s16)(0x12 - DSW(DS_skill_level)) * u)) landing_damage();
         }
         if (DSSL(DS_vel_y) >= 0) DSSL(DS_vel_y) += ldiv32(floor_ - DSSL(DS_pos_y), 8);
@@ -350,36 +369,46 @@ void car_physics(void)
         }
     }
 
-    /* 18. steering (uses DS:B70E = ticks the last frame took) */
-    t = (s16)(DSB(DS_steer_wheel) * 2 - 0x20);
-    t = (s16)(t + idiv32_16((s16)((s16)(t * DSB(DS_brake)) * CAR(0x123A)), CAR(0x123C), NULL));
-    t = (s16)(t + DSS(DS_crosswind));
-    if (DSB(DS_damage) & 1) t = (s16)(t + 4);
-    else if (DSB(DS_damage) & 2) t = (s16)(t - 4);
-    DSB(DS_speedo_step) = (DSSL(DS_speed_long) >= 0) ? (u8)(DSW(DS_car_speed) >> 2) : 0;
+    /* 18. steering (uses DS:B70E = ticks the last frame took)
+     * ENH: rewritten for the smooth view (ENHANCED.md "Steering"), the original's formula kept but in fractions:
+     * - the wheel is the continuous steer_frame position (keyboard), or the mouse's / stick's wheel as it is;
+     * - its response is the curve p (1 + |p|^3): gentle and linear near the centre, rising smoothly to the
+     *   original's doubled turn at full lock (the original doubles it only on the last wheel step);
+     * - the turn is in proportion to the frame's length (the original's ticks + 11h at the configured pacing);
+     * - the turn rate follows its target with a 0.1 s time constant, so a change of wheel builds up instead
+     *   of jumping, and the heading keeps its fraction (sim_fine_heading, for the smooth view).
+     * The handbrake (Space: brake 4 multiplies the turn by the car's 123Ah / 123Ch), the crosswind, the pull of
+     * a damaged car, the slow-speed fade and the grip / slide limits below are the original's. */
+    steer_frame();
     {
-        /* ENH: the original turns by (ticks + 11h) a frame, not in proportion to the frame's length: a frame
-         * that ran a tick or two late turned less per tick than its neighbours, a visible slow-down every few
-         * frames in a steady turn. The frame's ticks are scaled so the turn keeps its rate per tick; a frame
-         * of the configured length turns exactly as before. */
+        static double yaw_rate;                                   /* heading units a frame, smoothed */
+        double p = steer_analog_pos();
+        double tf = 32.0 * p * (1.0 + fabs(p) * p * p);
+        tf += tf * DSB(DS_brake) * CAR(0x123A) / (double)CAR(0x123C);
+        tf += DSS(DS_crosswind);
+        if (DSB(DS_damage) & 1) tf += 4;
+        else if (DSB(DS_damage) & 2) tf -= 4;
+        DSB(DS_speedo_step) = (DSSL(DS_speed_long) >= 0) ? (u8)(DSW(DS_car_speed) >> 2) : 0;
         double nom = host_frame_ticks(), ft = DSB(DS_frame_ticks);
         if (ft > 2.0 * nom) ft = 2.0 * nom;
+        if (ft < 1) ft = 1;
         u16 x = (u16)(u32)((nom + 0x11) * ft / nom * CARU(0x1222) + 0.5);
         x = (u16)(x * 7);
-        m = (s16)ldiv32(lmul(lmul(x, t), 0x50), (s16)(0x2B8 * CAR(0x1224)));
-        m = (s16)ldiv32(lmul((s16)((s16)(3 * DSC(DS_steering_response)) + 0x10), m), 0x24);
-        if (DSW(DS_car_speed) < 0x0C) m = (s16)ldiv32(lmul(m, DSW(DS_car_speed)), 0x0C);
-        /* ENH: the original doubles the turn at full lock only (wheel 0 or 20h), a sudden second stage to every
-         * held turn; the same doubling is reached gradually over the last 4 wheel steps */
-        {
-            s16 w = abs16((s16)(DSB(DS_steer_wheel) * 2 - 0x20));
-            if (w > 0x18) m = (s16)ldiv32(lmul(m, 8 + (w - 0x18)), 8);
+        double mf = x * tf * 0x50 / (0x2B8 * (double)CAR(0x1224));
+        mf = mf * (3 * DSC(DS_steering_response) + 0x10) / 0x24;
+        if (DSW(DS_car_speed) < 0x0C) mf = mf * DSW(DS_car_speed) / 0x0C;
+        double dt = ft * PIT_DIV_GAME / (double)PIT_HZ;
+        yaw_rate += (mf - yaw_rate) * (1.0 - exp(-dt / 0.10));
+        if (DSSL(DS_speed_long) == 0) yaw_rate = 0;
+        if (DSB(DS_on_ground) && DSSL(DS_speed_long) != 0) {
+            if ((u16)floor(sim_fine_heading) != DSW(DS_body_heading)) sim_fine_heading = DSW(DS_body_heading);
+            sim_fine_heading += DSSL(DS_speed_long) >= 0 ? yaw_rate : -yaw_rate;
+            sim_fine_heading -= floor(sim_fine_heading / 65536.0) * 65536.0;
+            DSW(DS_body_heading) = (u16)floor(sim_fine_heading);
         }
     }
     if (DSB(DS_on_ground) && DSSL(DS_speed_long) != 0) {
         s16 d, ad, m1, m2;
-        if (DSSL(DS_speed_long) >= 0) DSW(DS_body_heading) += (u16)m;
-        else                          DSW(DS_body_heading) -= (u16)m;
         d = (s16)(DSW(DS_body_heading) - DSW(DS_course));
         ad = abs16(d);
         m1 = (s16)grip_yaw_limit(CARU(0x1204));

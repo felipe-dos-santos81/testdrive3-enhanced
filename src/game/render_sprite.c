@@ -1,5 +1,6 @@
 #define RENDER3D_INTERNAL
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* Render3d: sprites (render3d.md §4.13) — load-time pre-scaling into the far sprite cache, per-frame list /
  * projection / sort / animation, the face + sprite painter merge loop (0e12:323e) and the transparent blitters
@@ -846,6 +847,7 @@ void draw_faces_and_sprites(void)
     sprite_project();
     sprite_sort();
     sprite_animate();
+    enh_drift_far_sprites();                                         /* ENH */
     DSB(DS_world_rebuilt) = 0;
     sprite_collisions();
 

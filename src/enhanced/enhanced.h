@@ -35,6 +35,7 @@ void enh_init(bool enabled, int res_scale, int aa, int motion_delay, int haze, i
 /* world_build_visible (render_world.c): the world is built anew (begin), cell c of the leg map is built. */
 void enh_world_begin(void);
 void enh_world_cell(u16 c);
+void enh_drift_far_sprites(void);          /* drifting sprites the far ring shows, after sprite_animate */
 bool enh_enabled(void);
 int  enh_res_scale(void);             /* the output scale (1 with --classic unless --res-scale says otherwise) */
 

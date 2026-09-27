@@ -186,6 +186,49 @@ static int cmp_far(const void *a, const void *b)
     return keys[ia] > keys[ib] ? -1 : keys[ia] < keys[ib] ? 1 : ia - ib;
 }
 
+/* ENH: sprite_animate (3352) drifts the sprites with id bit 40h / 80h (the aeroplane, clouds, birds) only while
+ * they are in the game's sprite list, which reaches a short distance; the far ring draws the leg's own sprites
+ * much farther, where they then hung still. Those not in the list this frame drift here by the same step while
+ * the ring shows them (the game's own rule, at the ring's reach). Called right after sprite_animate. */
+void enh_drift_far_sprites(void)
+{
+    if (!enh_enabled() || enh_draw_dist <= 0 || DSB(DS_menu_preview) != 0) return;
+    static bool listed[320];
+    memset(listed, 0, sizeof listed);
+    for (u16 k = 0; k < DSW(DS_sprite_vis_count); k++) {
+        u16 i = (u16)(DSW(DS_spr_inst + 2 * k) >> 1);
+        if (i < 320) listed[i] = true;
+    }
+    int R = enh_draw_dist, ccol = DSB(DS_cam_x + 1) >> 2, crow = 15 - (DSB(DS_cam_z + 1) >> 2);
+    int n = DSW(DS_sprite_count);
+    static double plane_acc[320][2];                          /* the aeroplane's fraction of a unit, z / x */
+    s16 dz = DSS(DS_sprite_drift_z), dx = DSS(DS_sprite_drift_x);
+    for (int i = 9; i < n && i < 320; i++) {
+        u16 id = DSW(DS_sprite_id + 2 * i);
+        if (!id || !(id & 0xC0)) continue;
+        u16 x = DSW(DS_sprite_x + 2 * i), z = DSW(DS_sprite_z + 2 * i);
+        bool plane = enh_is_plane(id);
+        if (listed[i]) {
+            if (!plane) continue;                             /* the game drifted it */
+            if (id & 0x40) z = (u16)(z - dz);                 /* the aeroplane: undo the game's step */
+            if (id & 0x80) x = (u16)(x - dx);
+        } else {
+            int dc = (x >> 10) - ccol, dr = (15 - (z >> 10)) - crow;
+            if (dc * dc + dr * dr > R * R + R) continue;      /* as the ring's sprites (enh_far_build) */
+        }
+        if (plane) {                                          /* ENH_PLANE_SPEED of the step, with its fraction */
+            double *a = plane_acc[i];
+            if (id & 0x40) { a[0] += dz * ENH_PLANE_SPEED; s16 k = (s16)trunc(a[0]); a[0] -= k; z = (u16)(z + k); }
+            if (id & 0x80) { a[1] += dx * ENH_PLANE_SPEED; s16 k = (s16)trunc(a[1]); a[1] -= k; x = (u16)(x + k); }
+        } else {
+            if (id & 0x40) z = (u16)(z + dz);
+            if (id & 0x80) x = (u16)(x + dx);
+        }
+        DSW(DS_sprite_z + 2 * i) = z;
+        DSW(DS_sprite_x + 2 * i) = x;
+    }
+}
+
 void enh_far_build(EnhSnap *s)
 {
     F = s;

@@ -61,9 +61,7 @@ void race_input(s16 phase)
 tail:
     (void)k;
     if (DSB(DS_crashed) == 0 && DSB(DS_ext_view) == 0) {
-        if ((DSW(DS_speed_long) | DSW(DS_speed_long + 2)) != 0 &&
-            DSB(DS_mouse_on) == 0 && DSB(DS_wheel_centring) != 0)
-            steer_centre();                         /* ENH: even and frame-paced (sim_controls.c) */
+        /* ENH: the wheel self-centring (C) is part of steer_frame (sim_controls.c) */
         wheel_update();
     }
 }

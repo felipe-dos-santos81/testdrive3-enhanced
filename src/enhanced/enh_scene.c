@@ -580,6 +580,9 @@ static void draw_sprite(const SprItem *it)
     const EnhSprImg *img;
     double w, h;
     if (!enh_sprite_pick(s, a, &img, &w, &h)) return;
+    /* ENH: the aeroplane (sprite 2, drifting): in the original's coarse pixels it reads as far away; here, drawn
+     * sharp at its full size, it looked close and low. Drawn at ENH_PLANE_SIZE of it (enh_far.c slows it too). */
+    if (enh_is_plane(e->id)) { w *= ENH_PLANE_SIZE; h *= ENH_PLANE_SIZE; }
 
     double row = -elev(V->spr_y[it->k] - V->cam_y, it->ydist);   /* sprite_row_angle */
     double sa = wraps(ang);
