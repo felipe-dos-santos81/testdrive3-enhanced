@@ -103,8 +103,9 @@ static inline u16 idiv16_8(s16 ax, s8 divisor)      /* returns AX: AL = quotient
 /* MSC 5.1 long-arithmetic helpers (_aFlmul, _aFldiv, _aFlrem, _aFulshr ...) are plain C operators on
  * s32/u32: C division truncates toward zero like the runtime's. */
 
-/* Name of the original executable this build ports. */
+/* Name of the original executable this build ports; some releases ship it as TD_EXE_ALT_NAME. */
 #define TD_EXE_NAME "TDIII.EXE"
+#define TD_EXE_ALT_NAME "TD3.EXE"
 
 /* Loads TD_EXE_NAME (EXEPACK-packed or already unpacked), relocates it to LOAD_SEG and checks that it
  * is the expected build. Returns false and fills err on failure. */

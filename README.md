@@ -35,7 +35,7 @@ files are not included.
 
 ## Requirements
 
-* Game files: `TDIII.EXE`, `PLAYDISK.DAT`, `DATAA–C.DAT`, `INSTR.DAT`, the car (`C*`) and scene (`SCENE*`) files.
+* Game files: `TDIII.EXE` (or `TD3.EXE`), `PLAYDISK.DAT`, `DATAA–C.DAT`, `INSTR.DAT`, the car (`C*`) and scene (`SCENE*`) files.
 * A multi-core CPU for the default picture; lower the resolution or anti-aliasing on slow machines.
 * To build: CMake 3.24+, C11, SDL 3; the launcher needs C++17 and wxWidgets 3.2.
 

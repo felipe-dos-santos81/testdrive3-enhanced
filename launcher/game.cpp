@@ -45,7 +45,8 @@ wxString CString(const std::string& data, size_t max) {
 bool FilePresent(const wxString& dir, const wxString& name) { return !dir.empty() && !FindFile(dir, name).empty(); }
 
 wxString MissingGameFile(const wxString& dir) {
-    for (const char* name : {"TDIII.EXE", "PLAYDISK.DAT", "DATAA.DAT", "DATAB.DAT", "DATAC.DAT", "INSTR.DAT"})
+    if (!FilePresent(dir, "TDIII.EXE") && !FilePresent(dir, "TD3.EXE")) return "TDIII.EXE";
+    for (const char* name : {"PLAYDISK.DAT", "DATAA.DAT", "DATAB.DAT", "DATAC.DAT", "INSTR.DAT"})
         if (!FilePresent(dir, name)) return name;
     return wxString();
 }

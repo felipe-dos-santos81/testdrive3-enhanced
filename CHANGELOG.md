@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.1
+
+- The game executable may be named `TD3.EXE` as well as `TDIII.EXE`.
+
+## 0.1.0
 
 - Project started from the faithful Test Drive III port, with its launcher renamed "Test Drive III Enhanced".
 - Enhanced renderer: the 3D view and mirror are redrawn smoothly at the display's rate (`--motion-delay`).

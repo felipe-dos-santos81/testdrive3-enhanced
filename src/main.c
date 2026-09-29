@@ -81,6 +81,9 @@ int main(int argc, char **argv)
 
     char exe_path[1024];
     snprintf(exe_path, sizeof exe_path, "%s/%s", dir, TD_EXE_NAME);
+    FILE *probe = fopen(exe_path, "rb");
+    if (probe) fclose(probe);
+    else snprintf(exe_path, sizeof exe_path, "%s/%s", dir, TD_EXE_ALT_NAME);
     char err[256];
     if (!mem_load_exe(exe_path, err, sizeof err)) {
         fprintf(stderr, "%s\n", err);
@@ -88,7 +91,7 @@ int main(int argc, char **argv)
         return 1;
     }
     if (check) {
-        printf("%s ok: image %u bytes at %04X:0000, DGROUP %04X, frame pacing %d ticks\n", TD_EXE_NAME,
+        printf("%s ok: image %u bytes at %04X:0000, DGROUP %04X, frame pacing %d ticks\n", exe_path,
                mem_image_size, LOAD_SEG, DGROUP, host_frame_ticks());
         return 0;
     }

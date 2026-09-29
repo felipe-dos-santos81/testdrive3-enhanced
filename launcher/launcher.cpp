@@ -138,7 +138,7 @@ LauncherDialog::LauncherDialog()
     filesGrid->AddGrowableCol(1);
     wxButton* browseFolder = nullptr;
     wxButton* browseProgram = nullptr;
-    folder_ = PathRow(fb, filesGrid, "&Folder:", "The folder with the original game's files (TDIII.EXE and the rest).",
+    folder_ = PathRow(fb, filesGrid, "&Folder:", "The folder with the original game's files (TDIII.EXE or TD3.EXE and the rest).",
                       &browseFolder);
     program_ = PathRow(fb, filesGrid, "&Program:", "testdrive3-enhanced, the game.", &browseProgram);
     auto* statusRow = new wxBoxSizer(wxHORIZONTAL);

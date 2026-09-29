@@ -9,7 +9,7 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
 * **Game files**
   * **Folder**: the folder with the original game's files (default `Game` beside the launcher).
   * **Program**: `testdrive3-enhanced.exe` (default: beside the launcher).
-  * The line below says how many cars and courses the folder has, or what is missing (`TDIII.EXE`,
+  * The line below says how many cars and courses the folder has, or what is missing (`TDIII.EXE` or `TD3.EXE`,
     `PLAYDISK.DAT`, `DATAA/B/C.DAT`, `INSTR.DAT`). **Play** stays greyed out until the folder and the program
     are there.
 * **Start**, as if chosen in the game's menus (which can still change them; the game remembers them in
