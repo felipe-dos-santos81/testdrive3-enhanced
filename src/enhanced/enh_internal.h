@@ -116,6 +116,8 @@ extern EnhPresent enh_present;
 
 /* ---- options (enhanced.c) ---- */
 extern int enh_scale, enh_aa, enh_motion_delay, enh_haze, enh_draw_dist;
+extern int enh_fog_start, enh_beam_night, enh_beam_day, enh_beam_soft;
+extern bool enh_lights;
 
 /* ---- the smooth view state of one displayed frame (enhanced.c) ---- */
 typedef struct {
@@ -158,12 +160,16 @@ static inline bool enh_is_plane(u16 id) { return (id & 0x3F) == 2 && (id & 0xC0)
 #define ENH_SOLID(c)         ((u32)(c) * 0x101u | 0x800000u)
 #define ENH_HAZE(h)          ((u32)(h) << 24)
 #define ENH_HAZE_ROWS        256       /* P_SKY ground haze table: entries, 1/32 view pixel apart below the horizon */
+#define ENH_FOG_STEPS        1024      /* per-sample fog table: entries over the distance (enh_scene.c) */
+extern u8 enh_fog_lut[ENH_FOG_STEPS];  /* haze by the distance along the line of sight, enh_fog_scale entries a unit */
+extern float enh_fog_scale;
 
 typedef enum { P_POLY, P_SPRITE, P_BLOCKS, P_SKY, P_ELLIPSE } EnhPrimKind;
 typedef struct {
     EnhPrimKind kind;
     u32 value;                         /* sample value (P_POLY, P_SKY's sky; P_SPRITE: the haze bits only) */
-    bool or_mode;                      /* OR 08h into both colours instead of storing */
+    bool or_mode;                      /* a light (headlight beam): lights what is below, soft-edged (see lt) */
+    bool fog;                          /* P_POLY with a plane: haze each sample by its own distance */
     int n;                             /* P_POLY: points */
     float x[16], y[16];                /* P_POLY: sample coordinates */
     /* P_SPRITE: destination rectangle in samples, image; P_ELLIPSE: the ellipse inscribed in the rectangle,
@@ -207,6 +213,16 @@ typedef struct {
     u32 *s;
     float *z;                          /* depth per sample */
     float *zf;                         /* the far ring's depth per sample */
+    u16 *lt;                           /* light per sample: amount 0..255 | the bits it ORs into the colours << 8,
+                                        * LT_BLOCKED: drawn over after the first light (the light does not reach it) */
+    u8 *lt_tmp;                        /* the softening's intermediate amounts */
+    int first_light;                   /* index of the first light primitive (nprim: none) */
+    bool use_lt;                       /* the light buffer is in use this frame (enhanced lights and a light);
+                                        * else lt is not written nor read and lights OR into the colours */
+    int lt_x0, lt_y0, lt_x1, lt_y1;    /* the samples the lights and their soft rims can reach */
+    u16 light_bits;                    /* the lights' bits << 8 */
+    u8 light_max;                      /* the lights' full amount (--beam-night / --beam-day) */
+    int light_soft;                    /* the lights' soft rim, view pixels each side (--beam-soft) */
     EnhPrim *prim;
     int nprim, cap;
     int k;                             /* samples per view pixel */
@@ -214,6 +230,8 @@ typedef struct {
     /* per column: sin / cos of the bearing and of the column's part of the elevation; per row: its part */
     float *col_sb, *col_cb, *col_se, *col_ce, *row_se, *row_ce;
 } EnhTarget;
+
+#define LT_BLOCKED 0x8000u
 
 void enh_target_reset(EnhTarget *t, int w_px, int h_px, int k);
 EnhPrim *enh_prim_add(EnhTarget *t, EnhPrimKind kind);

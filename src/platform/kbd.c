@@ -3,6 +3,7 @@
  * ctrl/normal/shift, CS:0E12/0E1A/0E22 direction tables). */
 #include "platform/platform.h"
 #include "platform/plat_priv.h"
+#include "enhanced/enhanced.h"
 
 /* Host-side machine state (PORT):
  *   kbd_hooked      INT 9 = kbd_isr (kbd_install .. kbd_restore); bytes arriving otherwise go to the BIOS
@@ -174,5 +175,6 @@ u8 plat_kbd_bda17(void) { return bda17; }
  * a case the original never had. Clears the shift bits of the modelled BIOS byte 0040:0017. */
 void plat_kbd_focus_lost(void)
 {
+    enh_keys_focus_lost();                  /* ENH: key bindings */
     bda17 &= (u8)~0x03;
 }

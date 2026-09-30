@@ -11,6 +11,7 @@ void race_run(void)
     u16 frame_start;
 
     DSB(DS_frozen) = 0;
+    enh_keys_race(true);                                   /* ENH: key bindings while racing */
     /* ENH developer aid: TD3_DEBUG_KEYS=1 turns on the original's dormant debug keys (T rain, S snow, N night;
      * they also make the car invulnerable), for checking the renderer in weather and at night. */
     bool debug_keys = SDL_getenv("TD3_DEBUG_KEYS") != NULL;
@@ -42,6 +43,7 @@ void race_run(void)
         if (debug_keys) DSB(DS_debug_keys) = 1;                /* ENH developer aid (see above) */
         if (DSW(DS_race_state) == 3) {                         /* leave */
             enh_stop();                                        /* ENH */
+            enh_keys_race(false);                              /* ENH */
             if (DSB(DS_race_computer_cars) != 0) opponent_times_finalize();
             DSB(DS_shake) = 1;
             screen_shake_step();

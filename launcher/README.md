@@ -2,7 +2,8 @@
 
 `Test Drive III Enhanced.exe` starts `testdrive3-enhanced`, Test Drive III: The Passion on SDL3 with the
 enhanced view, with the options chosen in its window. It is built with [wxWidgets](https://www.wxwidgets.org/) 3.2 from the platform's own controls,
-like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
+like the Test Drive II Enhanced and Test Drive III launchers it is modelled on; the menus, Preferences
+and Key Bindings follow Aces of the Pacific Enhanced's.
 
 ## The window
 
@@ -27,20 +28,39 @@ like the Test Drive II Enhanced and Test Drive III launchers it is modelled on.
   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
   * **Finish direction on the compass** (`--finish-marker`, on by default): a green mark on the compass points
     to the leg's gas station. Stored as `FinishMarker` in `settings.ini`.
-* **Picture** (the enhanced view, `../ENHANCED.md`):
+* **Graphics**: a summary of the picture settings and the **Graphics** button (as Game settings > Graphics).
+* **Play** starts the game; the launcher stays open.
+
+## Menus
+
+* **File**: **Preferences** (**Always on top** keeps the launcher above other windows) and **Exit**.
+* **Game settings > Graphics** shows the enhanced view's settings in the window (`../ENHANCED.md`). **Default**
+  puts them all back, **Apply** keeps them and goes back, **Cancel** goes back without changing them.
   * **Graphics**: *Enhanced* (the 3D view and the mirror drawn again, smooth and at a high resolution) or
-    *Original* (`--classic`: the game's own 320 x 200 picture, scaled).
-  * **Resolution** (`--res-scale`, default 1280 x 800): the size of the picture; the window scales it to fit.
-  * **Anti-aliasing** (`--aa`, default 2 x 2): samples per pixel; *Off* on a slow computer.
-  * **Motion** (`--motion-delay`): *Smooth* (default, 100: moves between the game's last two frames, never
-    guesses), *Balanced* (50) or *Most direct* (0), which guess half or a whole frame ahead: they answer sooner
-    but overshoot and pull back when the steering changes. Stored as `Motion` in `settings.ini`.
-  * **Haze** (`--haze`): distance haze, what is far away takes on some of the sky's colour at the horizon:
-    *Normal* (default, 30), *Light* (15), *Strong* (50) or *Off* (0). Stored as `Haze` in `settings.ini`.
-  * **Draw distance** (`--draw-distance`): how far the scenery reaches: *Far* (default, 7 cells around the
-    camera), *Medium* (5) or *Original* (0, the game's own cells). Stored as `DrawDistance` in `settings.ini`.
-* **Keys in the game**: a reminder of the game's keys.
-* **Play** starts the game; the launcher stays open. **About**: version, author and links.
+    *Original* (`--classic`: the game's own 320 x 200 picture, scaled; the settings below but the resolution
+    are then greyed out).
+  * **Resolution** (`--res-scale`, default 1280 x 800) and **Anti-aliasing** (`--aa`, default 2 x 2).
+  * Sliders, each with a number field beside it to type the value (kept in step with the slider):
+    * **Motion** (`--motion-delay`, 0-100 %, default 100: moves between the game's last two frames, never
+      guesses; less guesses ahead, which answers sooner but overshoots when the steering changes).
+    * **Draw distance** (`--draw-distance`, 0-7 cells around the camera, default 7; 0 is the game's own).
+    * **Fog** (`--haze`, 0-100 % of the sky's colour at the edge of the view, default 70; 0 = off).
+    * **Fog begins** (`--fog-start`, 0-90 % of the way to where it is full, default 10).
+    * **Lights**: **Enhanced lights** (`--enh-lights`, on by default; off gives the original's beams, full
+      strength with a hard edge) and, under it, the headlight beams **At night** (`--beam-night`, default 100 %), **By day** (`--beam-day`, default 35 %:
+      the game switches them on in rain and snow) and **Soft edge** (`--beam-soft`, 0-10 of the original's
+      pixels, default 3; 0 = the original's hard edge).
+  Stored as `Classic`, `Resolution`, `AntiAliasing`, `EnhancedLights`, `Motion`, `DrawDistance`, `Haze`, `FogStart`,
+  `BeamNight`, `BeamDay` and `BeamSoft`.
+* **Game settings > Key Bindings** shows the game's keys in the window, in three groups (driving, car, views and
+  game). Click a key and press the new one ("Press new key"; Shift, Ctrl or Alt can be held with it, Esc
+  cancels, **No key** leaves the action without one). A key already used by another action can be moved,
+  leaving that one without a key. **Default** puts every key back, **Apply** keeps them and goes back,
+  **Cancel** goes back without changing them. The game gets the changed ones with `--keys` and applies them
+  while a race runs; the menus, the name entry and the answers to the game's messages keep the game's own
+  keys. The keypad's 8 / 2 / 4 / 6, Enter (the gear gates), Esc and Alt+Enter keep their jobs. Stored under
+  `[Keys]`.
+* **About**: version, author and links.
 
 Everything is remembered in `%APPDATA%\Test Drive III Enhanced\settings.ini` (`~/.config/test-drive-iii-enhanced` on Linux). A
 folder or program left at its default is stored empty, so it follows the launcher if the whole folder moves.
@@ -66,6 +86,8 @@ itself is linked in.
 ## Files
 
 * `app.cpp`: the wxWidgets application.
+* `keys.h`, `keys.cpp`: the game's keys that can be changed, their names and the "Press new key" prompt
+  (the game's own list is `src/enhanced/enh_keys.c`).
 * `launcher.h`, `launcher.cpp`: the window and the About box.
 * `game.h`, `game.cpp`: reading `PLAYDISK.DAT` and the `.LST` names, the file checks and starting the game.
 * `settings.h`, `settings.cpp`: `settings.ini`.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Distance fog per pixel: the scenery sinks gradually into the fog instead of face by face; stronger by default (70 %).
+- Headlight beams have soft edges, with their own strength by day and at night (Enhanced lights, `--enh-lights`).
+- Launcher: menus (File > Preferences with Always on top, Game settings, About), as in Aces of the Pacific Enhanced.
+- Launcher: Game settings > Graphics, with sliders for motion, draw distance, fog, where the fog begins and the headlight beams (strength at night and by day, soft edge).
+- Launcher: Game settings > Key Bindings; the game applies them while racing (`--keys`).
+
 ## 0.1.1
 
 - The game executable may be named `TD3.EXE` as well as `TDIII.EXE`.

@@ -2,6 +2,7 @@
  * wrappers, the title / credits sequence, the copy-protection stubs and the PLAY DISK screen.
  * Segments 0000 / 01f4. */
 #include "game/game.h"
+#include "enhanced/enhanced.h"
 
 /* wait_any(n) of game_flow.md §4.5: until a key is in DS:915B, BIOS-tick waits, the joystick counts as a key
  * (stored as 1 unless `store_code`). Inline in message_box. */
@@ -17,7 +18,7 @@ static void msg_wait_any(s16 n, bool store_code)
 }
 
 /* 0000:179c message_box — game_flow.md §4.5 (verified against the jump table 0000:1d8e) */
-void message_box(s16 id)
+static void message_box_body(s16 id)
 {
     u16 save_bg, save_page, save_fg, m;
     s16 x, keep_bg = 0;
@@ -198,6 +199,14 @@ keep_key:
     DSW(DS_text_fg) = save_fg;
     DSW(DS_text_bg) = save_bg;
     DSW(DS_top_row_prev) = 0;
+}
+
+/* ENH: the key bindings stand aside while a message box waits for its answer (Y / N, digits, Enter) */
+void message_box(s16 id)
+{
+    enh_keys_suspend(true);
+    message_box_body(id);
+    enh_keys_suspend(false);
 }
 
 /* 01f4:1a82 print_records — game_flow.md §4.6 (verified) */

@@ -2,7 +2,8 @@
  *
  * usage: testdrive3-enhanced [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]
  *                [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]
- *                [--haze P] [--draw-distance N] [--finish-marker 0|1] [--classic] [--check]
+ *                [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]
+ *                [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1] [--classic] [--check]
  *   --game-dir    folder with the original game files (default: "Game" in the working directory)
  *   --scale       initial window scale: 320x240 times N (default 3)
  *   --fullscreen  start in full screen (Alt+Enter switches)
@@ -16,9 +17,17 @@
  *   --aa          ENH: anti-aliasing, N x N samples per output pixel (default 2, 1..4; 1 = off)
  *   --motion-delay ENH: how far the smooth view runs behind the game, percent of a game frame (default 100;
  *                 0 = no delay, extrapolated; 100 = a whole frame, interpolated only)
- *   --haze        ENH: distance haze, percent of the horizon's sky colour on what is farthest (default 30,
+ *   --haze        ENH: distance fog, percent of the horizon's sky colour on what is farthest (default 70,
  *                 0 = off)
  *   --draw-distance ENH: map cells drawn around the camera (default 7, 0..7; 0 = the game's own 3/6/10 cells)
+ *   --fog-start   ENH: where the fog begins, percent of the way to where it is full (default 10, 0..90)
+ *   --enh-lights  ENH: the enhanced headlight beams, 1 = on (default), 0 = full strength with a hard edge,
+ *                 as the original (the --beam-* options are then ignored)
+ *   --beam-night  ENH: headlight beams' strength at night, percent (default 100)
+ *   --beam-day    ENH: headlight beams' strength by day, in rain or snow, percent (default 35)
+ *   --beam-soft   ENH: the beams' soft rim, view pixels each side of the edge (default 3, 0..10; 0 = hard)
+ *   --keys        ENH: key bindings, "name=code,..." for the actions not on their default keys (the launcher's
+ *                 Game settings > Key Bindings; enhanced/enh_keys.c), applied while a race runs
  *   --finish-marker ENH: the direction of the leg's finish (the gas station) on the compass (default 1; 0 = off)
  *   --classic     ENH: the original's picture only (no enhanced view), at --res-scale (default 1)
  *   --check       load and verify the original executable, print a summary and exit (no window)
@@ -42,7 +51,8 @@ static int usage(const char *prog)
     fprintf(stderr,
             "usage: %s [--game-dir DIR] [--scale N] [--fullscreen] [--frame-ticks N] [--sound adlib|speaker]\n"
             "          [--car CODE] [--course CODE] [--skill N] [--res-scale N] [--aa N] [--motion-delay P]\n"
-            "          [--haze P] [--draw-distance N] [--finish-marker 0|1] [--classic] [--check]\n", prog);
+            "          [--haze P] [--draw-distance N] [--fog-start P] [--beam-night P] [--beam-day P]\n"
+            "          [--beam-soft N] [--enh-lights 0|1] [--keys NAME=CODE,...] [--finish-marker 0|1] [--classic] [--check]\n", prog);
     return 2;
 }
 
@@ -53,6 +63,9 @@ int main(int argc, char **argv)
     bool check = false, fullscreen = false, classic = false;
     int res_scale = -1, aa = ENH_DEFAULT_AA, motion_delay = ENH_DEFAULT_MOTION_DELAY;
     int haze = ENH_DEFAULT_HAZE, draw_dist = ENH_DEFAULT_DRAW_DIST;
+    int fog_start = ENH_DEFAULT_FOG_START, beam_night = ENH_DEFAULT_BEAM_NIGHT, beam_day = ENH_DEFAULT_BEAM_DAY;
+    int beam_soft = ENH_DEFAULT_BEAM_SOFT;
+    bool enh_lights = true;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--game-dir") && v) { dir = v; i++; }
@@ -73,6 +86,15 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--motion-delay") && v) { motion_delay = atoi(v); i++; }
         else if (!strcmp(a, "--haze") && v) { haze = atoi(v); i++; }
         else if (!strcmp(a, "--draw-distance") && v) { draw_dist = atoi(v); i++; }
+        else if (!strcmp(a, "--fog-start") && v) { fog_start = atoi(v); i++; }
+        else if (!strcmp(a, "--beam-night") && v) { beam_night = atoi(v); i++; }
+        else if (!strcmp(a, "--beam-day") && v) { beam_day = atoi(v); i++; }
+        else if (!strcmp(a, "--beam-soft") && v) { beam_soft = atoi(v); i++; }
+        else if (!strcmp(a, "--enh-lights") && v) { enh_lights = atoi(v) != 0; i++; }
+        else if (!strcmp(a, "--keys") && v) {
+            if (!enh_keys_parse(v)) { fprintf(stderr, "bad --keys list: %s\n", v); return usage(argv[0]); }
+            i++;
+        }
         else if (!strcmp(a, "--finish-marker") && v) { portcfg.finish_marker = atoi(v) != 0; i++; }
         else if (!strcmp(a, "--classic")) classic = true;
         else if (!strcmp(a, "--check")) check = true;
@@ -98,6 +120,7 @@ int main(int argc, char **argv)
 
     if (res_scale < 0) res_scale = classic ? 1 : ENH_DEFAULT_RES_SCALE;
     enh_init(!classic, res_scale, aa, motion_delay, haze, draw_dist);
+    enh_init_look(fog_start, enh_lights, beam_night, beam_day, beam_soft);
     if (!host_init(dir, scale, fullscreen)) return 1;
     vga_init();      /* mode 13h model: frame source, DAC, CRTC start */
     modules_init();  /* host handlers, code-pointer tables (modules.c) */

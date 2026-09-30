@@ -101,28 +101,39 @@ double enh_ground_height(const EnhSnap *s, double x4, double z4, double y, doubl
 }
 
 /* ------------------------------------------------------------------------------------------------------
- * Distance haze (ENH, after Play Stunts' distance colouring): what is far away takes on some of the sky's
- * colour at the horizon, from ENH_HAZE_NEAR to all of --haze at haze_far (depth-key units), smoothstep: the
- * edge of the far ring when there is one (so that it fades out), else ENH_HAZE_FAR.
- * The ground takes it by its angle below the horizon, as seen from ENH_HAZE_EYE over flat ground.
+ * Distance fog (ENH): what is far away takes on the sky's colour at the horizon, from --fog-start to --haze
+ * of it at haze_far (the edge of the far ring when there is one, so that it fades out, else ENH_HAZE_FAR),
+ * rising as exponential-squared fog does (1 - e^(-k x^2), scaled to reach 1 at the edge): hardly anything
+ * near, then the scenery sinks into it gradually. The polygons take it per sample, by the distance along the
+ * sample's line of sight (enh_fog_lut); sprites by their depth key; the ground by its angle below the horizon,
+ * as seen from ENH_HAZE_EYE over flat ground.
  * ------------------------------------------------------------------------------------------------------ */
+
+#define FOG_K 2.5                                /* the curve's steepness: e^-2.5 of the way at the edge */
 
 static double haze_max;                          /* 0..255 at haze_far; 0 = off */
 static double haze_far;
 static u8 ground_haze[ENH_HAZE_ROWS];
+u8 enh_fog_lut[ENH_FOG_STEPS];
+float enh_fog_scale;
+
+static double haze_near;                         /* where it begins: --fog-start percent of haze_far */
 
 static u32 haze_amount(double d)
 {
-    if (haze_max <= 0 || d <= ENH_HAZE_NEAR) return 0;
-    double x = (d - ENH_HAZE_NEAR) / (haze_far - ENH_HAZE_NEAR);
+    if (haze_max <= 0 || d <= haze_near) return 0;
+    double x = (d - haze_near) / (haze_far - haze_near);
     if (x > 1) x = 1;
-    return (u32)(x * x * (3 - 2 * x) * haze_max + 0.5);
+    return (u32)((1 - exp(-FOG_K * x * x)) / (1 - exp(-FOG_K)) * haze_max + 0.5);
 }
 
 static void haze_setup(void)
 {
     haze_max = S->menu_preview ? 0 : enh_haze * 2.55;
     haze_far = S->nff > 0 ? enh_draw_dist * 0x1000 : ENH_HAZE_FAR;
+    haze_near = haze_far * enh_fog_start / 100.0;
+    enh_fog_scale = (float)((ENH_FOG_STEPS - 1) / haze_far);
+    for (int i = 0; i < ENH_FOG_STEPS; i++) enh_fog_lut[i] = (u8)haze_amount(i / (double)enh_fog_scale);
     for (int i = 0; i < ENH_HAZE_ROWS; i++) {
         double a = (i + 0.5) / 32.0 / RAD2PX;              /* radians below the horizon */
         ground_haze[i] = (u8)haze_amount(ENH_HAZE_EYE + ENH_HAZE_EYE / tan(a));
@@ -146,6 +157,8 @@ static u8 z_mode = Z_NONE;
 static float z_plane[4], z_const;
 static bool z_far_write, z_far_test;
 
+static bool face_fog;                            /* the face being drawn takes the fog per sample */
+
 static void poly(int n, const double *x32, const double *y, u32 value, bool or_mode)
 {
     EnhPrim *p = enh_prim_add(T, P_POLY);
@@ -153,6 +166,7 @@ static void poly(int n, const double *x32, const double *y, u32 value, bool or_m
     p->n = n;
     p->value = value;
     p->or_mode = or_mode;
+    p->fog = face_fog && !or_mode;
     p->zmode = or_mode ? Z_NONE : z_mode;
     p->nx = z_plane[0]; p->ny = z_plane[1]; p->nz = z_plane[2]; p->d = z_plane[3];
     p->zc = z_const;
@@ -446,8 +460,8 @@ static void draw_face_rec(u16 w0, u16 w3, u16 pair, int v0, int v1, int v2, int 
     if (face_or && pair == 0x0707 && S->day) return;         /* OR faces: hidden by day */
     face_value = ENH_PAIR(pair);
     if (v0 >= NV || v1 >= NV) return;
-    /* ENH: haze by the average depth of the face's corners; not the headlight beams (they OR into what is
-     * below) nor, at night, the lamps */
+    /* ENH: haze by the average depth of the face's corners (what has no plane: lamps, lines), polygons per
+     * sample by their plane (face_fog); not the headlight beams (lights) nor, at night, the lamps */
     int n = w0 >> 14;
     if (haze_max > 0 && !face_or && (n != 0 || S->day)) {
         int vs[4] = { v0, v1, v2, v3 }, m = n == 0 ? 1 : n + 1;
@@ -488,22 +502,24 @@ static void draw_face_rec(u16 w0, u16 w3, u16 pair, int v0, int v1, int v2, int 
             z_mode = Z_CONST;
         }
     }
+    face_fog = haze_max > 0 && !face_or && n >= 2;
     switch (w0 >> 14) {
     case 0: draw_point(v0, w0); break;
     case 1: draw_line(v1, v0, w0); break;                     /* line_draw(bx = v1, si = v0) */
     case 2: {
-        if (v2 >= NV) return;
+        if (v2 >= NV) break;
         int v[3] = { v0, v1, v2 };
         draw_triangle(v);
         break;
     }
     default: {
-        if (v2 >= NV || v3 >= NV) return;
+        if (v2 >= NV || v3 >= NV) break;
         int v[4] = { v0, v1, v2, v3 };
         draw_quad(v);
         break;
     }
     }
+    face_fog = false;
 }
 
 static void draw_face(int f)
@@ -696,6 +712,8 @@ void enh_scene_build(const EnhSnap *s, const EnhView *v)
     VROWS = s->rows;
     enh_target_reset(&enh_front, (int)(W32 / 32), s->rows, K);
     enh_target_reset(&enh_mirror, 88, 19, K);
+    enh_front.light_max = enh_mirror.light_max = (u8)((s->day ? enh_beam_day : enh_beam_night) * 255 / 100);
+    enh_front.light_soft = enh_mirror.light_soft = enh_beam_soft;
 
     /* how the samples map back to lines of sight, for the depth (enh_raster.c) */
     EnhMap m = { false, (double)(s->cx_hi << 8) - v->heading, v->cam_row, v->roll_slope, CX32,

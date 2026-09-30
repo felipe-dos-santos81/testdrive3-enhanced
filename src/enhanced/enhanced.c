@@ -12,6 +12,9 @@
 
 int enh_scale = ENH_DEFAULT_RES_SCALE, enh_aa = ENH_DEFAULT_AA, enh_motion_delay = ENH_DEFAULT_MOTION_DELAY;
 int enh_haze = ENH_DEFAULT_HAZE;
+int enh_fog_start = ENH_DEFAULT_FOG_START, enh_beam_night = ENH_DEFAULT_BEAM_NIGHT;
+int enh_beam_day = ENH_DEFAULT_BEAM_DAY, enh_beam_soft = ENH_DEFAULT_BEAM_SOFT;
+bool enh_lights = true;
 static bool enabled = true;
 
 static EnhSnap snaps[2];
@@ -28,6 +31,17 @@ void enh_init(bool on, int res_scale, int aa, int motion_delay, int haze, int dr
     enh_aa = aa < 1 ? 1 : aa > ENH_MAX_AA ? ENH_MAX_AA : aa;
     while (enh_scale * enh_aa > ENH_MAX_SAMPLES && enh_aa > 1) enh_aa--;   /* keep the sample buffers sane */
     enh_motion_delay = motion_delay < 0 ? 0 : motion_delay > 100 ? 100 : motion_delay;
+}
+
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+void enh_init_look(int fog_start, bool lights, int beam_night, int beam_day, int beam_soft)
+{
+    enh_fog_start = clampi(fog_start, 0, 90);
+    enh_lights = lights;                  /* off: the original's beams, ORed into the colours */
+    enh_beam_night = clampi(beam_night, 0, 100);
+    enh_beam_day = clampi(beam_day, 0, 100);
+    enh_beam_soft = clampi(beam_soft, 0, ENH_MAX_BEAM_SOFT);
 }
 
 bool enh_enabled(void) { return enabled; }
@@ -509,9 +523,11 @@ static inline u32 pair_rgb(u32 s)
     return mix_rgb(a, b, w);
 }
 
-static inline u32 sample_rgb(u32 s)
+/* a sample and its light (EnhTarget lt): the colours with the light's bits ORed in, blended in by its amount */
+static inline u32 sample_rgb(u32 s, u16 l)
 {
     u32 c = pair_rgb(s), h = s >> 24;
+    if (l & 0xFF) c = mix_rgb(c, pair_rgb(s | (u32)(l >> 8) * 0x101u), l & 0xFF);
     return h ? mix_rgb(c, haze_rgb, h) : c;
 }
 
@@ -524,9 +540,11 @@ static void paste_block(u32 *out, int ox, int oy, const EnhTarget *t, int c, int
         for (int i = 0; i < S; i++) {
             u32 R = 0, G = 0, B = 0;
             for (int b = 0; b < A; b++) {
-                const u32 *s = t->s + (size_t)((r * S + j) * A + b) * t->w + (size_t)(c * S + i) * A;
+                size_t at = (size_t)((r * S + j) * A + b) * t->w + (size_t)(c * S + i) * A;
+                const u32 *s = t->s + at;
+                const u16 *l = t->use_lt ? t->lt + at : NULL;
                 for (int a = 0; a < A; a++) {
-                    u32 x = sample_rgb(s[a]);
+                    u32 x = sample_rgb(s[a], l ? l[a] : 0);
                     R += x >> 16 & 0xFF; G += x >> 8 & 0xFF; B += x & 0xFF;
                 }
             }

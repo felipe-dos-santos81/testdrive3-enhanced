@@ -7,7 +7,7 @@ files are not included.
 
 * Smooth 3D view at your display's refresh rate.
 * High resolution (up to 2560 × 1600) with anti-aliasing.
-* Longer draw distance and distance haze.
+* Longer draw distance and gradual distance fog.
 * Smooth steering; spins, slides and the handbrake as in the original.
 * Truer game speed; the race clock counts real seconds.
 * Finish marker on the compass.
@@ -66,8 +66,13 @@ cmake --build build
 | `--res-scale N` | Resolution, × 320×200 (default 4, 1–8) |
 | `--aa N` | Anti-aliasing, N×N samples (default 2, 1 = off) |
 | `--motion-delay P` | Smooth view delay, % of a game frame (default 100) |
-| `--haze P` | Distance haze, % (default 30, 0 = off) |
+| `--haze P` | Distance fog, % of the sky colour at the edge of the view (default 70, 0 = off) |
 | `--draw-distance N` | Map cells drawn around the camera (default 7, 0 = original) |
+| `--fog-start P` | Where the fog begins, % of the way to where it is full (default 10) |
+| `--beam-night P`, `--beam-day P` | Headlight beams' strength at night / by day, % (default 100 / 35) |
+| `--beam-soft N` | Headlight beams' soft edge, pixels (default 3, 0 = hard) |
+| `--enh-lights 0\|1` | Enhanced headlight beams (default 1; 0 = the original's) |
+| `--keys NAME=CODE,...` | Key bindings (the launcher's Game settings > Key Bindings) |
 | `--finish-marker 0\|1` | Finish marker on the compass (default 1) |
 | `--frame-ticks N` | Game speed, timer ticks per frame (default 14) |
 | `--classic` | Original picture only |
@@ -83,6 +88,7 @@ cmake --build build
 * F1 window, F2 detail, F3 steering sensitivity, F5 chase view, F6 back to road, F7 mouse steering.
 * F10 replay, F9 pause replay. Esc: leave.
 * Ctrl-P pause, Ctrl-S sound, Ctrl-Q music, Ctrl-E engine sound, Ctrl-J joystick, Ctrl-K keyboard.
+* The launcher's Game settings > Key Bindings changes the driving, car and game keys.
 
 ## Layout
 

@@ -18,10 +18,15 @@
                                           only interpolates between frames it has (never overshoots when the
                                           steering changes) */
 #define ENH_PITCH_SMOOTH_MS   60.0     /* low-pass on the camera pitch (horizon row) */
-#define ENH_DEFAULT_HAZE      30       /* distance haze: percent of the horizon's sky colour at the far edge */
+#define ENH_DEFAULT_HAZE      70       /* distance fog: percent of the horizon's sky colour at the far edge */
 #define ENH_DEFAULT_DRAW_DIST 7        /* draw distance in map cells (enh_far.c; 0 = the game's own cells only) */
 #define ENH_MAX_DRAW_DIST     7        /* 16-bit vertex coordinates reach 8 cells from the camera */
-#define ENH_HAZE_NEAR     0x0C00       /* depth (the faces' key units) where the haze begins */
+#define ENH_DEFAULT_FOG_START 10       /* where the fog begins: percent of the way to its full distance */
+#define ENH_DEFAULT_BEAM_NIGHT 100     /* headlight beams' strength at night, percent */
+#define ENH_DEFAULT_BEAM_DAY   35      /* ... by day (in rain or snow): the day palette's lit colours are far
+                                          brighter than the night's */
+#define ENH_DEFAULT_BEAM_SOFT  3       /* the beams' soft rim: view pixels each side of the edge (0 = hard) */
+#define ENH_MAX_BEAM_SOFT      10
 #define ENH_HAZE_FAR      0x3000       /* ... and where it is full (the farthest faces: about 2800h at medium detail) */
 #define ENH_HAZE_EYE        50.0       /* the eye's height over the ground, for the ground's distance by row */
 #ifndef ENH_BLEND_SPAN
@@ -31,6 +36,10 @@
 /* main.c: enabled = false is --classic (the original's picture, scaled). res_scale 1..8, aa 1..4,
  * motion_delay 0..100, haze 0..100 (0 = off). */
 void enh_init(bool enabled, int res_scale, int aa, int motion_delay, int haze, int draw_dist);
+/* main.c: fog_start 0..90 (percent of the fog's full distance); lights = the enhanced headlight beams (off:
+ * full strength with a hard edge, as the original), their strengths 0..100 (percent), beam_soft
+ * 0..ENH_MAX_BEAM_SOFT (view pixels). */
+void enh_init_look(int fog_start, bool lights, int beam_night, int beam_day, int beam_soft);
 
 /* world_build_visible (render_world.c): the world is built anew (begin), cell c of the leg map is built. */
 void enh_world_begin(void);
@@ -63,6 +72,22 @@ void enh_ov_skip(void);               /* after a polygon section: V changes are 
 void enh_ov_quad(u16 a_bx, u16 b_si, u16 c_di, u16 d_bp, u16 rec, u16 colour, bool or_mode);
 /* line_draw of an overlay: end points (byte offsets) and the fake record DS:rec (width flags in w0). */
 void enh_ov_line(u16 p_bx, u16 q_si, u16 rec, u16 colour);
+
+/* ---- key bindings (enh_keys.c) ----
+ * A key is an XT set-1 make code, ENH_KEY_GREY = sent after an E0 prefix, with the modifiers held with it. */
+#define ENH_KEY_GREY  0x0100
+#define ENH_KEY_SHIFT 0x1000
+#define ENH_KEY_CTRL  0x2000
+#define ENH_KEY_ALT   0x4000
+/* main.c --keys "name=code,...": the actions not on their default keys (code 0 = no key). False if the list
+ * can't be read. */
+bool enh_keys_parse(const char *spec);
+/* host.c key_event: key x went down / up. Returns -1 to send x as it is, or the number of keys put in out[]
+ * (at most 16; 80h = break, ENH_KEY_GREY = E0 prefix) to send instead. */
+int enh_key_map(u16 x, bool down, u16 *out);
+void enh_keys_focus_lost(void);       /* platform/kbd.c: every key counts as up */
+void enh_keys_race(bool on);          /* race_run: the bindings apply while a race runs */
+void enh_keys_suspend(bool on);       /* message_box: ... but not to a message box's answer */
 
 /* platform/vga.c compose: the VGA picture has been scaled into xrgb (320*S x 200*S); lay the enhanced view
  * over it. pal = the DAC as XRGB. Returns true while the enhanced view is shown (the picture changes with

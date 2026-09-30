@@ -186,26 +186,43 @@ gradient that follows the horizon, also when rolled (the original drops the grad
 ground: the ground pair below the horizon. The mirror's sky and ground come from `7b9b`'s horizon (the car's
 pitch and roll, its halved rows included).
 
-## Distance haze
+## Distance fog
 
-`ENH:` after Play Stunts' distance colouring (a browser reconstruction of Stunts, whose engine TD3 shares; its
-upgraded renderer tints what is beyond five tiles by up to 25 % towards a pale sky colour). Here what is far
-away takes on some of the colour of the sky at the horizon (the gradient's lowest band, or the flat sky pair),
-resolved through the current DAC, so the haze follows the time of day, the weather, fades and flashes by
-itself. The amount is `--haze` (default 30 %) × `smoothstep` of the depth from `ENH_HAZE_NEAR` (C00h) to the
-edge of the far ring (`--draw-distance` × 1000h, depth-key units, so that the edge fades out), or without it
-`ENH_HAZE_FAR` (3000h: the farthest faces are about 2800h at medium detail):
+`ENH:` first after Play Stunts' distance colouring (a browser reconstruction of Stunts, whose engine TD3 shares);
+now a per-sample fog. What is far away takes on the colour of the sky at the horizon (the gradient's lowest
+band, or the flat sky pair), resolved through the current DAC, so the fog follows the time of day, the weather,
+fades and flashes by itself. The amount is `--haze` (default 70 %) at the edge of the far ring
+(`--draw-distance` × 1000h, so that the edge fades out), or without it `ENH_HAZE_FAR` (3000h), rising from
+`--fog-start` (default 10 % of that distance) as exponential-squared fog does: `(1 − e^(−2.5 x²)) / (1 − e^(−2.5))` of it, `x` the
+share of the way. Little near the car, then the scenery sinks into it gradually:
 
-* faces by the average depth of their corners (the key's own rule would haze a long face by its far end);
-  not the OR faces (headlight beams), nor the lamps at night;
+* polygons per sample, by the distance along the sample's line of sight to the face's plane (the same distance
+  the depth buffer holds, see Sprites), through a 1024-entry table (`enh_fog_lut`). A large face, a long road
+  or a hillside, fades along its length; hazed by face (the average depth of its corners, as before) a face
+  took one amount all over and the fog changed in steps from face to face;
+* lamps and lines (no plane) by the average depth of their corners; not the OR faces (headlight beams), nor
+  the lamps at night;
 * sprites by their key; not those above the eye (the sun, the moon, clouds, birds);
-* the ground by its angle below the horizon, as seen from `ENH_HAZE_EYE` (50 units, the cockpit's eye over
-  the road) over flat ground: the haze gathers in the last few rows below the horizon and meets the sky's
-  colour there.
+* the ground by its angle below the horizon, as seen from `ENH_HAZE_EYE` (50 units) over flat ground.
 
-The haze is the top byte of the sample (see Rasterising). Measured at medium detail: the faces reach depth
-keys of 9000..11000, the trees stop at 1100h (`B6E2`). Not in the main menu's preview, nor on the mirror's
+The fog is the top byte of the sample (see Rasterising). Not in the main menu's preview, nor on the mirror's
 ground.
+
+## Headlight beams
+
+`ENH:` the OR faces (headlight beams, the game's and the cockpit overlay's) are lights: instead of ORing their
+bits into the colours, they mark the samples they cover as lit in the target's light buffer (`lt`, per sample:
+amount | bits << 8). A beam is several polygons side by side, so the soft edge is made from their union, not per
+polygon (which left dark seams where they meet): after the draw list, the amounts are box-filtered over
+`--beam-soft` (3) view pixels each way, rows then columns, and eased with smoothstep, so the rim fades over
+6 view pixels, half inside the beam and half outside. What is drawn over the lights afterwards (the dashboard)
+is marked blocked: it keeps the amount below it for the filter (the beam does not fade along the dashboard)
+but is not lit. The composition blends the colours with the bits ORed in by the amount, then the fog.
+By day the game draws the beams only in rain or snow (from the first weather-zone tile until the zone's level
+is back to 0, so they stay on for a while after the weather clears); the day palette's colours with 08h ORed
+in are far brighter than the night's, so a beam's full amount is `--beam-day` (default 35 %) by day and
+`--beam-night` (100 %) at night; the soft rim is `--beam-soft` view pixels each side (default 3, 0 = hard). `--enh-lights 0`
+(the launcher's Enhanced lights off) gives the original's beams: full strength by day and night, a hard edge.
 
 ## Draw distance
 
@@ -380,3 +397,13 @@ the display rate (VSync).
 
 Traffic beyond the game's range, lamps in the far ring, widescreen, the original's dither as an
 option, weather effects animated at the display rate, the menu preview's own pacing.
+
+## Key bindings
+
+`ENH:` after Aces of the Pacific Enhanced (`enh_keys.c`). `--keys name=code,...` gives actions other keys (XT
+make codes, 100h = sent after E0h, 1000h / 2000h / 4000h = Shift / Ctrl / Alt held with it; 0 = no key); the
+launcher's Game settings > Key Bindings writes it. `host.c` passes every key through `enh_key_map`: while a race runs
+(`race_run`, not in a message box, whose answers are Y / N, digits and Enter), a key bound to an action is sent
+as the action's own key, with the modifiers that key needs pressed or let go around it; the default key of an
+action bound elsewhere is dropped; other keys go through. A key keeps what it sent until it goes up, so a
+binding never sticks when the race ends with it held; the focus loss forgets every key.
