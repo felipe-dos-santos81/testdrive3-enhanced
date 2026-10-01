@@ -374,9 +374,10 @@ needs wxWidgets, and the error says so.
 git diff CMakeLists.txt
 ```
 
-Expected: three hunks only — the added clang block, the option default, and (Step 7) the version. The `MSVC`
-branch, the `WIN32` DLL-copy block, the `TD_ENHANCED_SOURCES` `-O2` property and the
-`target_link_libraries(... SDL3::SDL3 nuked_opl3)` line are untouched.
+Expected: two hunks only — the added clang block and the option default. The `MSVC` branch, the `WIN32`
+DLL-copy block, the `TD_ENHANCED_SOURCES` `-O2` property and the
+`target_link_libraries(... SDL3::SDL3 nuked_opl3)` line are untouched. The version bump is Task 5's, so it
+must not appear here.
 
 - [ ] **Step 9: Commit**
 
@@ -810,12 +811,14 @@ Expected: clean build, no warnings, and the `TDIII.EXE ok: ...` line from Task 4
 - [ ] **Step 8: Review the whole diff for the Windows build's sake**
 
 ```bash
-git diff HEAD~3 --stat
-git diff HEAD~3 -- src/game/sim_physics.c src/host.c launcher/
+BASE=$(git merge-base master HEAD)
+git diff "$BASE"..HEAD --stat
+git diff "$BASE"..HEAD -- src/game/sim_physics.c src/host.c launcher/
 ```
 
-Expected: `src/game/sim_physics.c`, `src/host.c` and everything under `launcher/` except `version.h` show
-**no** changes. The changed file list is exactly the twelve in the File Structure table.
+Use the merge base rather than `HEAD~N`, so the check holds however many commits the fix loop added. Expected:
+`src/game/sim_physics.c`, `src/host.c` and everything under `launcher/` except `version.h` show **no** changes.
+The changed file list is exactly the twelve in the File Structure table.
 
 - [ ] **Step 9: Commit**
 
