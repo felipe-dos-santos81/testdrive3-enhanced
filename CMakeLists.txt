@@ -28,6 +28,10 @@ else()
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_compile_options(testdrive3-enhanced PRIVATE -Wno-format-truncation)
     endif()
+    # sim_physics.c:213 keeps the original's clamp (t > FFh && t < -FFh), which can never hold on purpose.
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        target_compile_options(testdrive3-enhanced PRIVATE -Wno-tautological-overlap-compare)
+    endif()
     # The enhanced renderer does per-pixel work every frame; keep it optimised in Debug builds.
     if(TD_ENHANCED_SOURCES)
         set_source_files_properties(${TD_ENHANCED_SOURCES} PROPERTIES COMPILE_OPTIONS -O2)
@@ -42,7 +46,14 @@ endif()
 # The game's launcher ("Test Drive III Enhanced"): the game folder, the car, course and skill the game starts
 # with, the game speed, the enhanced view's options, sound and display; built beside testdrive3-enhanced.exe.
 # It needs wxWidgets 3.2 (MSYS2: mingw-w64-x86_64-wxwidgets3.2-msw) and a C++17 compiler.
-option(TD3E_LAUNCHER "Also build the launcher, Test Drive III Enhanced.exe (wxWidgets)" ON)
+# The launcher is a Windows convenience: on other platforms it needs wxWidgets, which the documented
+# cmake command must not require. Opt in with -DTD3E_LAUNCHER=ON wherever wxWidgets 3.2+ is installed.
+if(WIN32)
+    set(TD3E_LAUNCHER_DEFAULT ON)
+else()
+    set(TD3E_LAUNCHER_DEFAULT OFF)
+endif()
+option(TD3E_LAUNCHER "Also build the launcher, Test Drive III Enhanced (wxWidgets)" ${TD3E_LAUNCHER_DEFAULT})
 if(TD3E_LAUNCHER)
     add_subdirectory(launcher)
 endif()
