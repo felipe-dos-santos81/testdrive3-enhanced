@@ -33,14 +33,39 @@ files are not included.
 * Alt+Enter: full screen.
 * Launcher settings: `%APPDATA%\Test Drive III Enhanced\settings.ini`.
 
+## How to play (macOS)
+
+1. Put your original game files in a folder named `Game`.
+2. Set up once (see Build below), then play:
+
+   ```bash
+   make install
+   make run
+   ```
+
+* The folder must be writable (high scores and choices are saved in `Game`).
+* The game is windowed. The cursor is never captured or hidden: click another application mid-race and the window simply loses focus.
+* Alt+Enter: full screen (as on Windows).
+
 ## Requirements
 
 * Game files: `TDIII.EXE` (or `TD3.EXE`), `PLAYDISK.DAT`, `DATAA–C.DAT`, `INSTR.DAT`, the car (`C*`) and scene (`SCENE*`) files.
 * A multi-core CPU for the default picture; lower the resolution or anti-aliasing on slow machines.
 * To build: CMake 3.24+, C11, SDL 3; the launcher needs C++17 and wxWidgets 3.2.
+* macOS (Apple Silicon): Homebrew `sdl3` (`brew install sdl3`), CMake 3.24+, Ninja; `make install` installs whichever of these is missing.
 
 ## Build
 
+macOS (Apple Silicon):
+
+```bash
+make install
+make build
+```
+
+Targets: `help`, `install`, `configure`, `build`, `run`, `check`, `smoke`, `clean` (see `make help`).
+
+Windows:
 In Git Bash or an MSYS2 MinGW64 shell:
 
 ```bash
@@ -53,6 +78,19 @@ cmake --build build
 * The MSYS2 `SDL3.dll` also needs `libiconv-2.dll` from `C:\msys64\mingw64\bin`.
 
 ## Run
+
+macOS (Apple Silicon):
+
+```bash
+make run
+make run CAR=CCNSX COURSE=SCENE02 SKILL=3 SCALE=4
+make check
+make smoke
+```
+
+`make run` is windowed and never captures or hides the cursor; options (`CAR`, `COURSE`, `SKILL`, `SOUND`, `FRAME_TICKS`, `RES`, `AA`, `KEYS`, `ARGS`) are forwarded only when set. `make check` verifies `TDIII.EXE` loads; `make smoke` proves frames are composed headlessly.
+
+Windows:
 
 ```bash
 ./build/testdrive3-enhanced.exe --game-dir Game
@@ -96,6 +134,7 @@ cmake --build build
 * `src/enhanced/` — the enhanced renderer (`ENHANCED.md`).
 * `launcher/` — the launcher (`launcher/README.md`).
 * `third_party/nuked-opl3/` — the OPL2 emulator.
+* `Makefile` — macOS (Apple Silicon) build, run, check and smoke wrapper (`make help`).
 
 ## License
 

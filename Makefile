@@ -5,10 +5,10 @@
 #   make run CAR=CCNSX SCALE=4     play (see the variables at the top)
 #   make check                     load Game/TDIII.EXE, print a summary, exit
 #   make smoke                     headless: compose frames, save snapshots, exit
-SERVICE = Test Drive III Enhanced
+SERVICE ?= Test Drive III Enhanced
 
 # Build
-BUILD_DIR  = build
+BUILD_DIR  ?= build
 BUILD_TYPE ?= Release
 GENERATOR  ?= Ninja
 ARCH       ?= arm64

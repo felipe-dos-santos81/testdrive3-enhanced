@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- macOS (Apple Silicon) build through the new `Makefile`; windowed; the cursor is never captured or hidden.
+
 ## 0.2.0
 
 - Distance fog per pixel: the scenery sinks gradually into the fog instead of face by face; stronger by default (70 %).

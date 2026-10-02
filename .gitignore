@@ -1,3 +1,7 @@
+# OS artifacts
+.DS_Store
+Thumbs.db
+
 # Original game files (not redistributable)
 /Game/
 
